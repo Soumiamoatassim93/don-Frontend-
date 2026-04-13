@@ -1,0 +1,208 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
+
+const API_URL = 'http://192.168.1.8:3000';
+
+const EditDonScreen = ({ route, navigation }) => {
+  const { don } = route.params; // Don à modifier
+  const [title, setTitle] = useState(don.title);
+  const [description, setDescription] = useState(don.description);
+  const [categoryId, setCategoryId] = useState(don.categoryId);
+  const [status, setStatus] = useState(don.status);
+  const [images, setImages] = useState(don.images.map(img => img.url)); 
+  const [imagesToRemove, setImagesToRemove] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [errors, setErrors] = useState({});
+  const [location, setLocation] = useState({ latitude: don.latitude, longitude: don.longitude });
+
+  useEffect(() => {
+    fetchCategories();
+    getLocation();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/categories`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setCategories(data);
+    } catch (err) {
+      Alert.alert('Erreur', 'Impossible de charger les catégories');
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const getLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const loc = await Location.getCurrentPositionAsync({});
+      setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+    } catch (err) {
+      console.log('GPS non disponible');
+    }
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (!title.trim()) newErrors.title = 'Le titre est requis';
+    if (!description.trim()) newErrors.description = 'La description est requise';
+    if (!categoryId) newErrors.category = 'La catégorie est requise';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem('auth_token');
+
+      const body = {
+        title: title.trim(),
+        description: description.trim(),
+        categoryId,
+        status,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        images,
+        imagesToRemove,
+      };
+
+      const res = await fetch(`${API_URL}/dons/${don.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Erreur lors de la mise à jour');
+      }
+
+      Alert.alert('Succès', 'Don mis à jour !', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+    } catch (err) {
+      Alert.alert('Erreur', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeImage = (url) => {
+    setImages(images.filter(i => i !== url));
+    const imgToRemove = don.images.find(i => i.url === url);
+    if (imgToRemove) setImagesToRemove([...imagesToRemove, imgToRemove.id]);
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+      <Text style={styles.sectionTitle}>Modifier le don</Text>
+
+      {/* Titre */}
+      <Text style={styles.label}>Titre *</Text>
+      <TextInput
+        style={[styles.input, errors.title && styles.inputError]}
+        value={title}
+        onChangeText={(t) => { setTitle(t); setErrors(e => ({ ...e, title: null })); }}
+        placeholder="Ex: Vélo en bon état"
+      />
+      {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+
+      {/* Description */}
+      <Text style={styles.label}>Description *</Text>
+      <TextInput
+        style={[styles.input, styles.textArea, errors.description && styles.inputError]}
+        value={description}
+        onChangeText={(t) => { setDescription(t); setErrors(e => ({ ...e, description: null })); }}
+        placeholder="Décrivez votre don..."
+        multiline
+        numberOfLines={4}
+        textAlignVertical="top"
+      />
+      {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
+
+      {/* Catégorie */}
+      <Text style={styles.label}>Catégorie *</Text>
+      {loadingCategories ? (
+        <ActivityIndicator />
+      ) : (
+        <View style={styles.categoriesGrid}>
+          {categories.map(cat => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.categoryChip, categoryId === cat.id && styles.categoryChipSelected]}
+              onPress={() => { setCategoryId(cat.id); setErrors(e => ({ ...e, category: null })); }}
+            >
+              <Text style={[styles.categoryChipText, categoryId === cat.id && styles.categoryChipTextSelected]}>
+                {cat.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
+
+      {/* Statut */}
+      <Text style={styles.label}>Statut</Text>
+      <View style={styles.categoriesGrid}>
+        {['disponible', 'pris'].map(s => (
+          <TouchableOpacity
+            key={s}
+            style={[styles.categoryChip, status === s && styles.categoryChipSelected]}
+            onPress={() => setStatus(s)}
+          >
+            <Text style={[styles.categoryChipText, status === s && styles.categoryChipTextSelected]}>
+              {s}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Images */}
+      <Text style={styles.label}>Images</Text>
+      {images.map(url => (
+        <View key={url} style={styles.imageRow}>
+          <Text style={{ flex: 1 }}>{url}</Text>
+          <TouchableOpacity onPress={() => removeImage(url)}>
+            <Text style={{ color: 'red' }}>Supprimer</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      {/* Bouton */}
+      <TouchableOpacity
+        style={[styles.submitBtn, loading && { opacity: 0.6 }]}
+        onPress={handleSave}
+        disabled={loading}
+      >
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Enregistrer</Text>}
+      </TouchableOpacity>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f9fafb' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, color: '#111827' },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 8, color: '#111827' },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 14, fontSize: 15, marginBottom: 10 },
+  textArea: { height: 100 },
+  inputError: { borderColor: '#ef4444' },
+  errorText: { color: '#ef4444', fontSize: 12, marginBottom: 10 },
+  categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  categoryChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', marginBottom: 5 },
+  categoryChipSelected: { backgroundColor: '#6366f1', borderColor: '#6366f1' },
+  categoryChipText: { fontSize: 14, color: '#111827' },
+  categoryChipTextSelected: { color: '#fff', fontWeight: '600' },
+  submitBtn: { backgroundColor: '#6366f1', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 20 },
+  submitText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  imageRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+});
+
+export default EditDonScreen;
