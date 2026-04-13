@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-
-const API_URL = 'http://192.168.1.8:3000';
+import { API_URL } from '../../config';
 
 const EditDonScreen = ({ route, navigation }) => {
   const { don } = route.params; // Don à modifier

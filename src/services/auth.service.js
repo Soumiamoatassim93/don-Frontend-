@@ -1,14 +1,16 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_URL = 'http://192.168.1.8:3000';
+import { API_URL } from '../../config';
 
 class AuthService {
   constructor() {
     this.api = axios.create({
-      baseURL: API_URL,
-      timeout: 10000,
-    });
+  baseURL: API_URL,
+  timeout: 10000,
+  headers: {
+    "bypass-tunnel-reminder": "true"
+  },
+});
 
     // Interceptor requête — injecte le token
     this.api.interceptors.request.use(async (config) => {
@@ -30,7 +32,10 @@ class AuthService {
       }
     );
   }
-
+async getCurrentUser() {
+  const user = await AsyncStorage.getItem('user');
+  return user ? JSON.parse(user) : null;
+}
   async login(credentials) {
     try {
       console.log('📤 URL:', this.api.defaults.baseURL);

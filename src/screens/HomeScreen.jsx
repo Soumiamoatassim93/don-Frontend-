@@ -1,13 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, Image,
-  TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView,
+  TouchableOpacity, ActivityIndicator, RefreshControl,
+  ScrollView, TextInput,Alert
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import SideMenu from '../components/SideMenu';
 import { authService } from '../services/auth.service';
-
-const API_URL = 'http://192.168.1.8:3000';
+import { API_URL } from '../../config';
 
 const colors = {
   primary: '#6366f1',
@@ -16,62 +15,77 @@ const colors = {
   background: '#f9fafb',
   card: '#ffffff',
   available: '#10b981',
+  favBg: '#fff1f2',
+  favColor: '#e11d48',
+  reqBg: '#ede9fe',
+  reqColor: '#6d28d9',
 };
 
-const DonCard = ({ don, onPress }) => {
+const CATEGORIES = ['Tous', 'Alimentaire', 'Électronique', 'Vêtements', 'Mobilier', 'Livres'];
+
+const isNew = (dateStr) =>
+  Date.now() - new Date(dateStr).getTime() < 24 * 60 * 60 * 1000;
+
+const HeartIcon = ({ filled }) => (
+  <Text style={{ fontSize: 13, color: colors.favColor }}>{filled ? '❤️' : '🤍'}</Text>
+);
+const SendIcon = () => <Text style={{ fontSize: 13 }}>📨</Text>;
+
+const DonCard = ({ don, onPress, onFavorite, onRequest, isFavorite }) => {
   const images = Array.isArray(don.images) ? don.images : [];
 
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress(don)}>
-      {/* Galerie d'images */}
-      {images.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.imageGallery}
-        >
+    <TouchableOpacity style={styles.card} onPress={() => onPress(don)} activeOpacity={0.85}>
+      {isNew(don.createdAt) && (
+        <View style={styles.newBadge}>
+          <Text style={styles.newBadgeText}>Nouveau</Text>
+        </View>
+      )}
+
+      {images.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageGallery}>
           {images.map((img, index) => {
             const uri = typeof img === 'string'
               ? `${API_URL}/uploads/${img}`
               : `${API_URL}/uploads/${img.filename || img.path}`;
-            return (
-              <Image
-                key={index}
-                source={{ uri }}
-                style={styles.donImage}
-                resizeMode="cover"
-              />
-            );
+            return <Image key={index} source={{ uri }} style={styles.donImage} resizeMode="cover" />;
           })}
         </ScrollView>
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <Text style={styles.imagePlaceholderText}>📦</Text>
+        </View>
       )}
 
-      {/* Contenu */}
       <View style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{don.title}</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{don.status}</Text>
-          </View>
-        </View>
+        <Text style={styles.cardTitle} numberOfLines={1}>{don.title}</Text>
 
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {don.description}
-        </Text>
-
-        {/* Adresse */}
         {don.address ? (
           <View style={styles.addressRow}>
             <Text style={styles.addressIcon}>📍</Text>
-            <Text style={styles.addressText} numberOfLines={1}>
-              {don.address}
-            </Text>
+            <Text style={styles.addressText} numberOfLines={1}>{don.address}</Text>
           </View>
         ) : null}
 
-        <Text style={styles.cardDate}>
-          {new Date(don.createdAt).toLocaleDateString('fr-FR')}
-        </Text>
+        <View style={styles.cardMeta}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{don.status}</Text>
+          </View>
+          <Text style={styles.cardDate}>
+            {new Date(don.createdAt).toLocaleDateString('fr-FR')}
+          </Text>
+        </View>
+
+        <View style={styles.cardActions}>
+          <TouchableOpacity style={[styles.actionBtn, styles.favBtn]} onPress={() => onFavorite(don)}>
+            <HeartIcon filled={isFavorite} />
+            <Text style={[styles.actionText, { color: colors.favColor }]}>Favori</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, styles.reqBtn]} onPress={() => onRequest(don)}>
+            <SendIcon />
+            <Text style={[styles.actionText, { color: colors.reqColor }]}>Demander</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -82,35 +96,79 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [menuVisible, setMenuVisible] = useState(false);
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('Tous');
+  const [favorites, setFavorites] = useState(new Set());
   const { user } = useAuth();
 
-  const fetchDons = async (isRefresh = false) => {
+  const fetchDons = useCallback(async (isRefresh = false) => {
     try {
       isRefresh ? setRefreshing(true) : setIsLoading(true);
       setError(null);
       const response = await authService.api.get('/dons/available');
-      setDons(response.data);
+      const sorted = (Array.isArray(response.data) ? response.data : []).sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      setDons(sorted);
     } catch (err) {
-      console.log('❌ Erreur fetchDons:', err.response?.status, err.message);
       setError(err.response?.data?.message || err.message);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    fetchDons();
   }, []);
 
-  if (isLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+  useEffect(() => { fetchDons(); }, []);
+
+  const filteredDons = dons.filter((don) => {
+    const isOwn = don.userId === user?.id || don.user?.id === user?.id;
+    if (isOwn) return false;
+    const matchSearch =
+      don.title?.toLowerCase().includes(search.toLowerCase()) ||
+      don.description?.toLowerCase().includes(search.toLowerCase());
+    const matchCategory = activeCategory === 'Tous' || don.category === activeCategory;
+    return matchSearch && matchCategory;
+  });
+
+const handleFavorite = useCallback(async (don) => {
+  try {
+    const user = await authService.getCurrentUser();
+
+    await authService.api.post('/favorites', {
+      userId: user.id,
+      donId: don.id,
+    });
+
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      next.has(don.id) ? next.delete(don.id) : next.add(don.id);
+      return next;
+    });
+
+  } catch (err) {
+    console.log('❌ favorite error:', err.response?.data || err.message);
   }
+}, []);
+
+const handleRequest = useCallback(async (don) => {
+  try {
+    const user = await authService.getCurrentUser();
+
+    await authService.api.post('/requests', {
+      userId: user.id,
+      donationId: don.id,
+      status: 'pending',
+    });
+    console.log('👉 DON:', don);
+console.log('👉 USER:', user);
+    // navigation ou feedback
+    Alert.alert('Succès', 'Demande envoyée ✔️');
+
+  } catch (err) {
+    console.log('❌ request error:', err.response?.data || err.message);
+    Alert.alert('Erreur', 'Impossible d’envoyer la demande');
+  }
+}, []);
 
   if (error) {
     return (
@@ -123,27 +181,72 @@ const HomeScreen = ({ navigation }) => {
     );
   }
 
-  const initiale = user?.email?.[0]?.toUpperCase() || 'U';
+  const initiale = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => setMenuVisible(true)}>
-            <Text style={styles.menuIcon}>☰</Text>
-          </TouchableOpacity>
           <Text style={styles.greeting}>Bonjour 👋 {initiale}</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('MessagerieDrawer')}
+            style={styles.msgBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.msgIcon}>💬</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.subtitle}>{dons.length} don(s) disponible(s)</Text>
+
+        <Text style={styles.subtitle}>{filteredDons.length} don(s) disponible(s)</Text>
+
+        <View style={styles.searchBar}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher un don..."
+            placeholderTextColor={colors.textLight}
+            value={search}
+            onChangeText={setSearch}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Text style={{ color: colors.textLight, fontSize: 16 }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoryScroll}
+          contentContainerStyle={styles.categoryContent}
+        >
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.catChip, activeCategory === cat && styles.catChipActive]}
+              onPress={() => setActiveCategory(cat)}
+            >
+              <Text style={[styles.catText, activeCategory === cat && styles.catTextActive]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <FlatList
-        data={dons}
+        data={filteredDons}
         keyExtractor={(item) => item.id.toString()}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
         renderItem={({ item }) => (
           <DonCard
             don={item}
             onPress={(don) => navigation.navigate('DonDetail', { don })}
+            onFavorite={handleFavorite}
+            onRequest={handleRequest}
+            isFavorite={favorites.has(item.id)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -157,19 +260,9 @@ const HomeScreen = ({ navigation }) => {
         }
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddDon')}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('AddDon')}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
-
-      <SideMenu
-        navigation={navigation}
-        isVisible={menuVisible}
-        closeMenu={() => setMenuVisible(false)}
-        activeScreen="Home"
-      />
     </View>
   );
 };
@@ -177,51 +270,52 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  header: { padding: 24, paddingBottom: 12 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  menuIcon: { fontSize: 28, color: colors.primary, marginRight: 12 },
-  greeting: { fontSize: 20, fontWeight: 'bold', color: colors.text },
-  subtitle: { fontSize: 14, color: colors.textLight },
-  list: { padding: 16, paddingTop: 8 },
-  card: {
-    backgroundColor: colors.card, borderRadius: 12, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
-    overflow: 'hidden',
-  },
-  imageGallery: { height: 180 },
-  donImage: { width: 280, height: 180, marginRight: 2 },
-  cardContent: { padding: 16 },
-  cardHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 8,
-  },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: colors.text, flex: 1 },
-  badge: {
-    backgroundColor: '#d1fae5', paddingHorizontal: 8,
-    paddingVertical: 3, borderRadius: 20,
-  },
-  badgeText: { color: colors.available, fontSize: 12, fontWeight: '500' },
-  cardDescription: { fontSize: 14, color: colors.textLight, lineHeight: 20 },
-  addressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  addressIcon: { fontSize: 12, marginRight: 4 },
-  addressText: { fontSize: 12, color: colors.textLight, flex: 1 },
-  cardDate: { fontSize: 12, color: colors.textLight, marginTop: 6 },
+  header: { backgroundColor: colors.card, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  menuBtn: { marginRight: 10 },
+  menuIcon: { fontSize: 24, color: colors.primary },
+  greeting: { flex: 1, fontSize: 17, fontWeight: '600', color: colors.text },
+  msgBtn: { marginLeft: 8 },
+  msgIcon: { fontSize: 22 },
+  subtitle: { fontSize: 12, color: colors.textLight, marginBottom: 10 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 },
+  searchIcon: { fontSize: 14, marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 13, color: colors.text, padding: 0 },
+  categoryScroll: { marginBottom: 4 },
+  categoryContent: { gap: 6, paddingBottom: 4 },
+  catChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: colors.card },
+  catChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  catText: { fontSize: 12, fontWeight: '500', color: colors.textLight },
+  catTextActive: { color: '#fff' },
+  list: { padding: 10, paddingBottom: 80 },
+  row: { justifyContent: 'space-between' },
+  card: { backgroundColor: colors.card, borderRadius: 12, marginBottom: 10, width: '48.5%', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4, elevation: 2 },
+  newBadge: { position: 'absolute', top: 6, left: 6, zIndex: 10, backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
+  newBadgeText: { color: '#fff', fontSize: 9, fontWeight: '600' },
+  imageGallery: { height: 100 },
+  donImage: { width: 160, height: 100 },
+  imagePlaceholder: { height: 90, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' },
+  imagePlaceholderText: { fontSize: 28 },
+  cardContent: { padding: 8 },
+  cardTitle: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 3 },
+  addressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  addressIcon: { fontSize: 10, marginRight: 2 },
+  addressText: { fontSize: 10, color: colors.textLight, flex: 1 },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  badge: { backgroundColor: '#d1fae5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
+  badgeText: { color: colors.available, fontSize: 9, fontWeight: '500' },
+  cardDate: { fontSize: 9, color: colors.textLight },
+  cardActions: { flexDirection: 'row', gap: 5 },
+  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 5, borderRadius: 8 },
+  favBtn: { backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3' },
+  reqBtn: { backgroundColor: '#ede9fe', borderWidth: 1, borderColor: '#ddd6fe' },
+  actionText: { fontSize: 10, fontWeight: '500' },
   errorText: { color: 'red', marginBottom: 12 },
-  retryBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8,
-  },
+  retryBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   retryText: { color: 'white', fontWeight: '600' },
-  emptyText: { color: colors.textLight, fontSize: 16 },
-  fab: {
-    position: 'absolute', bottom: 24, right: 24,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center', alignItems: 'center',
-    elevation: 6,
-  },
-  fabText: { color: 'white', fontSize: 28, fontWeight: 'bold', lineHeight: 30 },
+  emptyText: { color: colors.textLight, fontSize: 15 },
+  fab: { position: 'absolute', bottom: 24, right: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', elevation: 6 },
+  fabText: { color: 'white', fontSize: 26, fontWeight: 'bold', lineHeight: 28 },
 });
 
 export default HomeScreen;
