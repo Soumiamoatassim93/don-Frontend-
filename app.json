@@ -22,7 +22,8 @@
         "permissions": ["ACCESS_FINE_LOCATION"]
 
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
