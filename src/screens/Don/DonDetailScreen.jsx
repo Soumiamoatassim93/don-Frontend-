@@ -3,9 +3,9 @@ import {
   View, Text, StyleSheet, ScrollView,
   Image, Dimensions, TouchableOpacity, Alert,
 } from 'react-native';
-import { API_URL } from '../../config';
-import { authService } from '../services/auth.service';
-
+import { API_URL } from '../../../config';
+import { authService } from '../../services/auth.service';
+import { styles } from './styles/DonDetail';
 const { width } = Dimensions.get('window');
 
 const colors = {
@@ -270,62 +270,5 @@ const DonDetailScreen = ({ route, navigation }) => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1 },
-  fullImage: { width, height: 280 },
-  imageErrorContainer: { 
-    width, 
-    height: 280, 
-    backgroundColor: '#f3f4f6', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  imageErrorText: { fontSize: 48, marginBottom: 8 },
-  imageErrorSubtext: { fontSize: 14, color: colors.textLight },
-  noImage: { height: 180, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' },
-  noImageText: { fontSize: 16, color: colors.textLight },
-  dots: { flexDirection: 'row', justifyContent: 'center', marginTop: 8, marginBottom: 4 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#d1d5db', marginHorizontal: 3 },
-  dotActive: { backgroundColor: colors.primary, width: 18 },
-  content: { padding: 20 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: 'bold', color: colors.text, flex: 1, marginRight: 8 },
-  titleRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  badge: { backgroundColor: '#d1fae5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { color: colors.available, fontSize: 12, fontWeight: '600' },
-  favIconBtn: { padding: 4 },
-  favIcon: { fontSize: 22 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  rowIcon: { fontSize: 14, marginRight: 6 },
-  rowText: { fontSize: 14, color: colors.textLight, flex: 1 },
-  divider: { height: 1, backgroundColor: '#e5e7eb', marginVertical: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 },
-  description: { fontSize: 15, color: colors.text, lineHeight: 24 },
-  donateurRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  donateurName: { fontSize: 15, fontWeight: '600', color: colors.text },
-  donateurEmail: { fontSize: 13, color: colors.textLight },
-  bottomBar: { 
-    flexDirection: 'row', 
-    gap: 10, 
-    padding: 16, 
-    backgroundColor: colors.card, 
-    borderTopWidth: 1, 
-    borderTopColor: '#e5e7eb',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  bottomBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  msgBtn: { backgroundColor: '#ede9fe' },
-  reqBtn: { backgroundColor: colors.primary },
-  reqBtnSent: { backgroundColor: colors.available },
-  reqBtnLoading: { opacity: 0.7 },
-  bottomBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-});
 
 export default DonDetailScreen;
