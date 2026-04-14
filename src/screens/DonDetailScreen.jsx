@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   Image, Dimensions, TouchableOpacity, Alert,
 } from 'react-native';
 import { API_URL } from '../../config';
 import { authService } from '../services/auth.service';
-import { useCallback } from 'react';
 
 const { width } = Dimensions.get('window');
 
@@ -20,10 +19,35 @@ const colors = {
   reqColor: '#6d28d9',
 };
 
+// Fonction corrigée pour obtenir l'URL de l'image
 const getImageUri = (img) => {
-  const path = typeof img === 'string' ? img : img.url;
-  if (!path) return null;
-  return `${API_URL}/uploads/${path}`;
+  if (!img) return null;
+  
+  // Si c'est une chaîne de caractères
+  if (typeof img === 'string') {
+    if (img.startsWith('http')) return img;
+    // Supprimer le préfixe /uploads/ s'il existe déjà
+    const cleanPath = img.replace(/^\/?uploads\//, '');
+    return `${API_URL}/uploads/${cleanPath}`;
+  }
+  
+  // Si c'est un objet avec une propriété url
+  if (img.url) {
+    if (img.url.startsWith('http')) return img.url;
+    // Supprimer le préfixe /uploads/ s'il existe déjà
+    const cleanPath = img.url.replace(/^\/?uploads\//, '');
+    return `${API_URL}/uploads/${cleanPath}`;
+  }
+  
+  // Si c'est un objet avec filename ou path
+  if (img.filename) {
+    return `${API_URL}/uploads/${img.filename}`;
+  }
+  if (img.path) {
+    return `${API_URL}/uploads/${img.path}`;
+  }
+  
+  return null;
 };
 
 const DonDetailScreen = ({ route, navigation }) => {
@@ -33,45 +57,72 @@ const DonDetailScreen = ({ route, navigation }) => {
   const [isFavorite, setIsFavorite] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [loadingRequest, setLoadingRequest] = useState(false);
+  const [imageErrors, setImageErrors] = useState({});
 
-const handleFavorite = useCallback(async (don) => {
-  try {
-    const user = await authService.getCurrentUser();
+  // Vérifier si le don est déjà en favori au chargement
+  useEffect(() => {
+    const checkFavorite = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        const response = await authService.api.get(`/favorites/check?userId=${user.id}&donId=${don.id}`);
+        setIsFavorite(response.data.isFavorite);
+      } catch (err) {
+        console.log('Erreur vérification favori:', err);
+      }
+    };
+    checkFavorite();
+  }, [don.id]);
 
-    await authService.api.post('/favorites', {
-      userId: user.id,
-      donId: don.id,
-    });
+  const handleFavorite = useCallback(async () => {
+    try {
+      const user = await authService.getCurrentUser();
+      
+      if (isFavorite) {
+        // Supprimer des favoris
+        await authService.api.delete(`/favorites/${user.id}/${don.id}`);
+        setIsFavorite(false);
+        Alert.alert('Succès', 'Retiré des favoris');
+      } else {
+        // Ajouter aux favoris
+        await authService.api.post('/favorites', {
+          userId: user.id,
+          donId: don.id,
+        });
+        setIsFavorite(true);
+        Alert.alert('Succès', 'Ajouté aux favoris');
+      }
+    } catch (err) {
+      console.log('❌ favorite error:', err.response?.data || err.message);
+      Alert.alert('Erreur', 'Impossible de modifier les favoris');
+    }
+  }, [isFavorite, don.id]);
 
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      next.has(don.id) ? next.delete(don.id) : next.add(don.id);
-      return next;
-    });
+  const handleRequest = useCallback(async () => {
+    if (requestSent || loadingRequest) return;
+    
+    setLoadingRequest(true);
+    try {
+      const user = await authService.getCurrentUser();
+      
+      await authService.api.post('/requests', {
+        userId: user.id,
+        donationId: don.id,
+        status: 'pending',
+      });
+      
+      setRequestSent(true);
+      Alert.alert('Succès', 'Demande envoyée ✔️');
+    } catch (err) {
+      console.log('❌ request error:', err.response?.data || err.message);
+      Alert.alert('Erreur', 'Impossible d’envoyer la demande');
+    } finally {
+      setLoadingRequest(false);
+    }
+  }, [don.id, requestSent, loadingRequest]);
 
-  } catch (err) {
-    console.log('❌ favorite error:', err.response?.data || err.message);
-  }
-}, []);
-
-const handleRequest = useCallback(async (don) => {
-  try {
-    const user = await authService.getCurrentUser();
-
-    await authService.api.post('/requests', {
-      userId: user.id,
-      donationId: don.id,
-      status: 'pending',
-    });
-
-    // navigation ou feedback
-    Alert.alert('Succès', 'Demande envoyée ✔️');
-
-  } catch (err) {
-    console.log('❌ request error:', err.response?.data || err.message);
-    Alert.alert('Erreur', 'Impossible d’envoyer la demande');
-  }
-}, []);
+  const handleImageError = (index) => {
+    setImageErrors(prev => ({ ...prev, [index]: true }));
+  };
 
   return (
     <View style={styles.wrapper}>
@@ -89,14 +140,28 @@ const handleRequest = useCallback(async (don) => {
                 setActiveIndex(index);
               }}
             >
-              {images.map((img, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: getImageUri(img) }}
-                  style={styles.fullImage}
-                  resizeMode="cover"
-                />
-              ))}
+              {images.map((img, index) => {
+                const imageUri = getImageUri(img);
+                if (imageErrors[index] || !imageUri) {
+                  return (
+                    <View key={index} style={[styles.fullImage, styles.imageErrorContainer]}>
+                      <Text style={styles.imageErrorText}>📷</Text>
+                      <Text style={styles.imageErrorSubtext}>Image non disponible</Text>
+                    </View>
+                  );
+                }
+                
+                return (
+                  <Image
+                    key={index}
+                    source={{ uri: imageUri }}
+                    style={styles.fullImage}
+                    resizeMode="cover"
+                    onError={() => handleImageError(index)}
+                    onLoad={() => console.log(`Image ${index} chargée: ${imageUri}`)}
+                  />
+                );
+              })}
             </ScrollView>
             {images.length > 1 && (
               <View style={styles.dots}>
@@ -118,7 +183,7 @@ const handleRequest = useCallback(async (don) => {
             <Text style={styles.title}>{don.title}</Text>
             <View style={styles.titleRight}>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{don.status}</Text>
+                <Text style={styles.badgeText}>{don.status || 'Disponible'}</Text>
               </View>
               <TouchableOpacity style={styles.favIconBtn} onPress={handleFavorite}>
                 <Text style={styles.favIcon}>{isFavorite ? '❤️' : '🤍'}</Text>
@@ -155,7 +220,7 @@ const handleRequest = useCallback(async (don) => {
           <View style={styles.divider} />
 
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{don.description}</Text>
+          <Text style={styles.description}>{don.description || 'Aucune description fournie'}</Text>
 
           {/* Donateur */}
           {don.user && (
@@ -184,7 +249,7 @@ const handleRequest = useCallback(async (don) => {
           style={[styles.bottomBtn, styles.msgBtn]}
           onPress={() => navigation.navigate('Messagerie', { don, recipient: don.user })}
         >
-          <Text style={styles.bottomBtnText}>💬 Contacter</Text>
+          <Text style={[styles.bottomBtnText, { color: colors.reqColor }]}>💬 Contacter</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -210,6 +275,15 @@ const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
   fullImage: { width, height: 280 },
+  imageErrorContainer: { 
+    width, 
+    height: 280, 
+    backgroundColor: '#f3f4f6', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  imageErrorText: { fontSize: 48, marginBottom: 8 },
+  imageErrorSubtext: { fontSize: 14, color: colors.textLight },
   noImage: { height: 180, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' },
   noImageText: { fontSize: 16, color: colors.textLight },
   dots: { flexDirection: 'row', justifyContent: 'center', marginTop: 8, marginBottom: 4 },
@@ -234,13 +308,24 @@ const styles = StyleSheet.create({
   avatarText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   donateurName: { fontSize: 15, fontWeight: '600', color: colors.text },
   donateurEmail: { fontSize: 13, color: colors.textLight },
-  bottomBar: { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: '#e5e7eb' },
+  bottomBar: { 
+    flexDirection: 'row', 
+    gap: 10, 
+    padding: 16, 
+    backgroundColor: colors.card, 
+    borderTopWidth: 1, 
+    borderTopColor: '#e5e7eb',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
   bottomBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   msgBtn: { backgroundColor: '#ede9fe' },
   reqBtn: { backgroundColor: colors.primary },
   reqBtnSent: { backgroundColor: colors.available },
   reqBtnLoading: { opacity: 0.7 },
-  bottomBtnText: { color: colors.card, fontSize: 15, fontWeight: '600' },
+  bottomBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });
 
 export default DonDetailScreen;

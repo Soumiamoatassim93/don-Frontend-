@@ -13,13 +13,14 @@ class AuthService {
 });
 
     // Interceptor requête — injecte le token
-    this.api.interceptors.request.use(async (config) => {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
+    this.api.interceptors.request.use((config) => {
+  return AsyncStorage.getItem('auth_token').then((token) => {
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  });
+});
 
     // Interceptor réponse — déconnecte si token invalide
     this.api.interceptors.response.use(
@@ -36,23 +37,29 @@ async getCurrentUser() {
   const user = await AsyncStorage.getItem('user');
   return user ? JSON.parse(user) : null;
 }
-  async login(credentials) {
-    try {
-      console.log('📤 URL:', this.api.defaults.baseURL);
-      console.log('📦 Credentials:', credentials);
-      const response = await this.api.post('/auth/login', credentials);
-      console.log('✅ Réponse:', response.data);
-      const { access_token, user } = response.data;
-      await AsyncStorage.setItem('auth_token', access_token);
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      return { access_token, user };
-    } catch (error) {
-      console.log('❌ Error response:', error.response?.data);
-      console.log('❌ Error status:', error.response?.status);
-      console.log('❌ Error message:', error.message);
-      throw this.handleError(error);
+ async login(credentials) {
+  try {
+    const response = await this.api.post('/auth/login', credentials);
+
+    console.log("RESPONSE:", response.data);
+
+    const access_token = response.data?.access_token;
+    const user = response.data?.user ?? null;
+
+    if (!access_token) {
+      throw new Error("Token manquant");
     }
+
+    await AsyncStorage.setItem('auth_token', access_token);
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+
+    return response.data;
+
+  } catch (error) {
+    console.log("ERROR LOGIN:", error.response?.data || error.message);
+    throw this.handleError(error);
   }
+}
 
   async register(userData) {
     try {

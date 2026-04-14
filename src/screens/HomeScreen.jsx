@@ -2,10 +2,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, Image,
   TouchableOpacity, ActivityIndicator, RefreshControl,
-  ScrollView, TextInput,Alert
+  ScrollView, TextInput, Alert
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/auth.service';
+import { categoryService } from '../services/category.service';
 import { API_URL } from '../../config';
 
 const colors = {
@@ -21,7 +22,7 @@ const colors = {
   reqColor: '#6d28d9',
 };
 
-const CATEGORIES = ['Tous', 'Alimentaire', 'Électronique', 'Vêtements', 'Mobilier', 'Livres'];
+const DEFAULT_CATEGORIES = ['Tous'];
 
 const isNew = (dateStr) =>
   Date.now() - new Date(dateStr).getTime() < 24 * 60 * 60 * 1000;
@@ -29,10 +30,35 @@ const isNew = (dateStr) =>
 const HeartIcon = ({ filled }) => (
   <Text style={{ fontSize: 13, color: colors.favColor }}>{filled ? '❤️' : '🤍'}</Text>
 );
+
 const SendIcon = () => <Text style={{ fontSize: 13 }}>📨</Text>;
 
 const DonCard = ({ don, onPress, onFavorite, onRequest, isFavorite }) => {
-  const images = Array.isArray(don.images) ? don.images : [];
+  // Extraction des URLs d'images
+  const getImageUrls = () => {
+    if (!don.images || !Array.isArray(don.images)) return [];
+    
+    return don.images
+      .map(img => {
+        // Cas 1: img est un objet avec url
+        if (img && img.url) {
+          return img.url.startsWith('http') ? img.url : `${API_URL}${img.url}`;
+        }
+        // Cas 2: img est une chaîne de caractères
+        if (typeof img === 'string') {
+          return img.startsWith('http') ? img : `${API_URL}/uploads/${img}`;
+        }
+        // Cas 3: img a filename ou path
+        if (img && (img.filename || img.path)) {
+          const filename = img.filename || img.path;
+          return `${API_URL}/uploads/${filename}`;
+        }
+        return null;
+      })
+      .filter(url => url !== null);
+  };
+
+  const imageUrls = getImageUrls();
 
   return (
     <TouchableOpacity style={styles.card} onPress={() => onPress(don)} activeOpacity={0.85}>
@@ -42,14 +68,17 @@ const DonCard = ({ don, onPress, onFavorite, onRequest, isFavorite }) => {
         </View>
       )}
 
-      {images.length > 0 ? (
+      {imageUrls.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageGallery}>
-          {images.map((img, index) => {
-            const uri = typeof img === 'string'
-              ? `${API_URL}/uploads/${img}`
-              : `${API_URL}/uploads/${img.filename || img.path}`;
-            return <Image key={index} source={{ uri }} style={styles.donImage} resizeMode="cover" />;
-          })}
+          {imageUrls.map((url, index) => (
+            <Image 
+              key={index} 
+              source={{ uri: url }} 
+              style={styles.donImage} 
+              resizeMode="cover"
+              onError={(e) => console.log(`Erreur chargement image ${index}:`, e.nativeEvent.error)}
+            />
+          ))}
         </ScrollView>
       ) : (
         <View style={styles.imagePlaceholder}>
@@ -93,6 +122,7 @@ const DonCard = ({ don, onPress, onFavorite, onRequest, isFavorite }) => {
 
 const HomeScreen = ({ navigation }) => {
   const [dons, setDons] = useState([]);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -100,6 +130,18 @@ const HomeScreen = ({ navigation }) => {
   const [activeCategory, setActiveCategory] = useState('Tous');
   const [favorites, setFavorites] = useState(new Set());
   const { user } = useAuth();
+
+  // Récupérer les catégories depuis la BDD
+  const fetchCategories = useCallback(async () => {
+    try {
+      const categoriesData = await categoryService.getCategories();
+      const categoryNames = categoriesData.map(cat => cat.name);
+      setCategories(['Tous', ...categoryNames]);
+    } catch (err) {
+      console.error('Erreur chargement catégories:', err);
+      setCategories(DEFAULT_CATEGORIES);
+    }
+  }, []);
 
   const fetchDons = useCallback(async (isRefresh = false) => {
     try {
@@ -118,7 +160,15 @@ const HomeScreen = ({ navigation }) => {
     }
   }, []);
 
-  useEffect(() => { fetchDons(); }, []);
+  useEffect(() => {
+    const loadData = async () => {
+      await Promise.all([
+        fetchDons(),
+        fetchCategories()
+      ]);
+    };
+    loadData();
+  }, [fetchDons, fetchCategories]);
 
   const filteredDons = dons.filter((don) => {
     const isOwn = don.userId === user?.id || don.user?.id === user?.id;
@@ -130,45 +180,59 @@ const HomeScreen = ({ navigation }) => {
     return matchSearch && matchCategory;
   });
 
-const handleFavorite = useCallback(async (don) => {
+  const handleFavorite = useCallback(async (don) => {
   try {
-    const user = await authService.getCurrentUser();
-
+    const currentUser = await authService.getCurrentUser();
+    
+    console.log('Ajout favori - Don ID:', don.id); // Debug
+    
     await authService.api.post('/favorites', {
-      userId: user.id,
-      donId: don.id,
+      userId: currentUser.id,
+      donationId: don.id,  // Assurez-vous que c'est donationId et pas donId
     });
-
+    
     setFavorites((prev) => {
       const next = new Set(prev);
-      next.has(don.id) ? next.delete(don.id) : next.add(don.id);
+      if (next.has(don.id)) {
+        next.delete(don.id);
+      } else {
+        next.add(don.id);
+      }
       return next;
     });
-
+    
+    Alert.alert('Succès', favorites.has(don.id) ? 'Retiré des favoris' : 'Ajouté aux favoris');
   } catch (err) {
     console.log('❌ favorite error:', err.response?.data || err.message);
+    Alert.alert('Erreur', 'Impossible de modifier les favoris');
   }
-}, []);
+}, [favorites]);
 
-const handleRequest = useCallback(async (don) => {
-  try {
-    const user = await authService.getCurrentUser();
+  const handleRequest = useCallback(async (don) => {
+    try {
+      const currentUser = await authService.getCurrentUser();
+      
+      await authService.api.post('/requests', {
+        userId: currentUser.id,
+        donationId: don.id,
+        status: 'pending',
+      });
+      
+      Alert.alert('Succès', 'Demande envoyée ✔️');
+    } catch (err) {
+      console.log('❌ request error:', err.response?.data || err.message);
+      Alert.alert('Erreur', 'Impossible d’envoyer la demande');
+    }
+  }, []);
 
-    await authService.api.post('/requests', {
-      userId: user.id,
-      donationId: don.id,
-      status: 'pending',
-    });
-    console.log('👉 DON:', don);
-console.log('👉 USER:', user);
-    // navigation ou feedback
-    Alert.alert('Succès', 'Demande envoyée ✔️');
-
-  } catch (err) {
-    console.log('❌ request error:', err.response?.data || err.message);
-    Alert.alert('Erreur', 'Impossible d’envoyer la demande');
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 10, color: colors.textLight }}>Chargement...</Text>
+      </View>
+    );
   }
-}, []);
 
   if (error) {
     return (
@@ -221,7 +285,7 @@ console.log('👉 USER:', user);
           style={styles.categoryScroll}
           contentContainerStyle={styles.categoryContent}
         >
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <TouchableOpacity
               key={cat}
               style={[styles.catChip, activeCategory === cat && styles.catChipActive]}
@@ -268,54 +332,256 @@ console.log('👉 USER:', user);
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  header: { backgroundColor: colors.card, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  menuBtn: { marginRight: 10 },
-  menuIcon: { fontSize: 24, color: colors.primary },
-  greeting: { flex: 1, fontSize: 17, fontWeight: '600', color: colors.text },
-  msgBtn: { marginLeft: 8 },
-  msgIcon: { fontSize: 22 },
-  subtitle: { fontSize: 12, color: colors.textLight, marginBottom: 10 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 },
-  searchIcon: { fontSize: 14, marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 13, color: colors.text, padding: 0 },
-  categoryScroll: { marginBottom: 4 },
-  categoryContent: { gap: 6, paddingBottom: 4 },
-  catChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: colors.card },
-  catChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  catText: { fontSize: 12, fontWeight: '500', color: colors.textLight },
-  catTextActive: { color: '#fff' },
-  list: { padding: 10, paddingBottom: 80 },
-  row: { justifyContent: 'space-between' },
-  card: { backgroundColor: colors.card, borderRadius: 12, marginBottom: 10, width: '48.5%', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4, elevation: 2 },
-  newBadge: { position: 'absolute', top: 6, left: 6, zIndex: 10, backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
-  newBadgeText: { color: '#fff', fontSize: 9, fontWeight: '600' },
-  imageGallery: { height: 100 },
-  donImage: { width: 160, height: 100 },
-  imagePlaceholder: { height: 90, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' },
-  imagePlaceholderText: { fontSize: 28 },
-  cardContent: { padding: 8 },
-  cardTitle: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 3 },
-  addressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  addressIcon: { fontSize: 10, marginRight: 2 },
-  addressText: { fontSize: 10, color: colors.textLight, flex: 1 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  badge: { backgroundColor: '#d1fae5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
-  badgeText: { color: colors.available, fontSize: 9, fontWeight: '500' },
-  cardDate: { fontSize: 9, color: colors.textLight },
-  cardActions: { flexDirection: 'row', gap: 5 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 5, borderRadius: 8 },
-  favBtn: { backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3' },
-  reqBtn: { backgroundColor: '#ede9fe', borderWidth: 1, borderColor: '#ddd6fe' },
-  actionText: { fontSize: 10, fontWeight: '500' },
-  errorText: { color: 'red', marginBottom: 12 },
-  retryBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  retryText: { color: 'white', fontWeight: '600' },
-  emptyText: { color: colors.textLight, fontSize: 15 },
-  fab: { position: 'absolute', bottom: 24, right: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', elevation: 6 },
-  fabText: { color: 'white', fontSize: 26, fontWeight: 'bold', lineHeight: 28 },
+  container: { 
+    flex: 1, 
+    backgroundColor: colors.background 
+  },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 20 
+  },
+  header: { 
+    backgroundColor: colors.card, 
+    paddingHorizontal: 16, 
+    paddingTop: 20, 
+    paddingBottom: 10, 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#f0f0f0' 
+  },
+  headerRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 4 
+  },
+  menuBtn: { 
+    marginRight: 10 
+  },
+  menuIcon: { 
+    fontSize: 24, 
+    color: colors.primary 
+  },
+  greeting: { 
+    flex: 1, 
+    fontSize: 17, 
+    fontWeight: '600', 
+    color: colors.text 
+  },
+  msgBtn: { 
+    marginLeft: 8 
+  },
+  msgIcon: { 
+    fontSize: 22 
+  },
+  subtitle: { 
+    fontSize: 12, 
+    color: colors.textLight, 
+    marginBottom: 10 
+  },
+  searchBar: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#f3f4f6', 
+    borderRadius: 10, 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    marginBottom: 10 
+  },
+  searchIcon: { 
+    fontSize: 14, 
+    marginRight: 8 
+  },
+  searchInput: { 
+    flex: 1, 
+    fontSize: 13, 
+    color: colors.text, 
+    padding: 0 
+  },
+  categoryScroll: { 
+    marginBottom: 4 
+  },
+  categoryContent: { 
+    gap: 6, 
+    paddingBottom: 4 
+  },
+  catChip: { 
+    paddingHorizontal: 12, 
+    paddingVertical: 5, 
+    borderRadius: 20, 
+    borderWidth: 1, 
+    borderColor: '#e5e7eb', 
+    backgroundColor: colors.card 
+  },
+  catChipActive: { 
+    backgroundColor: colors.primary, 
+    borderColor: colors.primary 
+  },
+  catText: { 
+    fontSize: 12, 
+    fontWeight: '500', 
+    color: colors.textLight 
+  },
+  catTextActive: { 
+    color: '#fff' 
+  },
+  list: { 
+    padding: 10, 
+    paddingBottom: 80 
+  },
+  row: { 
+    justifyContent: 'space-between' 
+  },
+  card: { 
+    backgroundColor: colors.card, 
+    borderRadius: 12, 
+    marginBottom: 10, 
+    width: '48.5%', 
+    overflow: 'hidden', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.07, 
+    shadowRadius: 4, 
+    elevation: 2 
+  },
+  newBadge: { 
+    position: 'absolute', 
+    top: 6, 
+    left: 6, 
+    zIndex: 10, 
+    backgroundColor: colors.primary, 
+    borderRadius: 10, 
+    paddingHorizontal: 6, 
+    paddingVertical: 2 
+  },
+  newBadgeText: { 
+    color: '#fff', 
+    fontSize: 9, 
+    fontWeight: '600' 
+  },
+  imageGallery: { 
+    height: 100 
+  },
+  donImage: { 
+    width: 160, 
+    height: 100 
+  },
+  imagePlaceholder: { 
+    height: 90, 
+    backgroundColor: '#f3f4f6', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  imagePlaceholderText: { 
+    fontSize: 28 
+  },
+  cardContent: { 
+    padding: 8 
+  },
+  cardTitle: { 
+    fontSize: 12, 
+    fontWeight: '600', 
+    color: colors.text, 
+    marginBottom: 3 
+  },
+  addressRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 4 
+  },
+  addressIcon: { 
+    fontSize: 10, 
+    marginRight: 2 
+  },
+  addressText: { 
+    fontSize: 10, 
+    color: colors.textLight, 
+    flex: 1 
+  },
+  cardMeta: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    marginBottom: 6 
+  },
+  badge: { 
+    backgroundColor: '#d1fae5', 
+    paddingHorizontal: 6, 
+    paddingVertical: 2, 
+    borderRadius: 10 
+  },
+  badgeText: { 
+    color: colors.available, 
+    fontSize: 9, 
+    fontWeight: '500' 
+  },
+  cardDate: { 
+    fontSize: 9, 
+    color: colors.textLight 
+  },
+  cardActions: { 
+    flexDirection: 'row', 
+    gap: 5 
+  },
+  actionBtn: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 3, 
+    paddingVertical: 5, 
+    borderRadius: 8 
+  },
+  favBtn: { 
+    backgroundColor: '#fff1f2', 
+    borderWidth: 1, 
+    borderColor: '#fecdd3' 
+  },
+  reqBtn: { 
+    backgroundColor: '#ede9fe', 
+    borderWidth: 1, 
+    borderColor: '#ddd6fe' 
+  },
+  actionText: { 
+    fontSize: 10, 
+    fontWeight: '500' 
+  },
+  errorText: { 
+    color: 'red', 
+    marginBottom: 12 
+  },
+  retryBtn: { 
+    backgroundColor: colors.primary, 
+    paddingHorizontal: 20, 
+    paddingVertical: 10, 
+    borderRadius: 8 
+  },
+  retryText: { 
+    color: 'white', 
+    fontWeight: '600' 
+  },
+  emptyText: { 
+    color: colors.textLight, 
+    fontSize: 15 
+  },
+  fab: { 
+    position: 'absolute', 
+    bottom: 24, 
+    right: 20, 
+    width: 52, 
+    height: 52, 
+    borderRadius: 26, 
+    backgroundColor: colors.primary, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    elevation: 6 
+  },
+  fabText: { 
+    color: 'white', 
+    fontSize: 26, 
+    fontWeight: 'bold', 
+    lineHeight: 28 
+  },
 });
 
 export default HomeScreen;
