@@ -3,16 +3,18 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { TouchableOpacity, Text } from 'react-native';
 
-import HomeScreen from '../screens/HomeScreen';
-import AddDonScreen from '../screens/AddDonScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import MesDonsScreen from '../screens/MesDonsScreen';
-import EditDonScreen from '../screens/EditDonScreen';
-import DonDetailScreen from '../screens/DonDetailScreen';
+import HomeScreen from '../screens/HomeScreen/HomeScreen';
+import AddDonScreen from '../screens/Don/AddDonScreen';
+import ProfileScreen from '../screens/Profile/ProfileScreen';
+import MesDonsScreen from '../screens/Don/MesDonsScreen';
+import EditDonScreen from '../screens/Don/EditDonScreen';
+import DonDetailScreen from '../screens/Don/DonDetailScreen';
 import MessagerieScreen from '../screens/MessagerieScreen';
 import CustomDrawerContent from './CustomDrawerContent';
-import FavorisScreen from '../screens/FavorisScreen';
-import RequestsScreen from '../screens/RequestsScreen';
+import FavorisScreen from '../screens/Favoris/FavorisScreen';
+import RequestsScreen from '../screens/RequestScreen/RequestsScreen';
+import TrackingScreen from '../screens/TrakingScreen/TrackingScreen';
+import SenderTrackingScreen from '../screens/SenderTracking/SenderTrackingScreen';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -59,6 +61,8 @@ const AppStack = () => (
     <Drawer.Screen name="MessagerieDrawer" component={MessagerieScreen} options={{ title: 'Messagerie', ...stackOptions }} />
     <Drawer.Screen name="Favoris"   component={FavorisScreen}  options={{ title: 'Mes Favoris'  }} />
 <Drawer.Screen name="Requests"  component={RequestsScreen} options={{ title: 'Demandes'      }} />
+<Drawer.Screen name="Tracking" component={TrackingScreen} options={{ headerShown: false }} />
+<Drawer.Screen name="SenderTracking" component={SenderTrackingScreen} options={{ headerShown: false }} />
   </Drawer.Navigator>
 );
 

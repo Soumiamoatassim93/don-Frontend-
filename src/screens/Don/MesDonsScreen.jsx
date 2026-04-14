@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Alert, ActivityIndicator, Pressable } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
-import { authService } from '../services/auth.service';
-
+import { useAuth } from '../../contexts/AuthContext';
+import { authService } from '../../services/auth.service';
+import {styles} from './styles/MesDons';
 
 const MesDonsScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -86,17 +86,5 @@ const MesDonsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  card: { backgroundColor: '#fff', padding: 15, borderRadius: 10, marginBottom: 15, elevation: 2 },
-  title: { fontSize: 16, fontWeight: 'bold', marginBottom: 5 },
-  desc: { fontSize: 14, color: '#555', marginBottom: 5 },
-  address: { fontSize: 12, color: '#6366f1', marginBottom: 4 },
-  status: { fontSize: 12, color: '#888', marginBottom: 10 },
-  buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  editBtn: { backgroundColor: '#6366f1', padding: 8, borderRadius: 6 },
-  deleteBtn: { backgroundColor: '#ef4444', padding: 8, borderRadius: 6 },
-  btnText: { color: '#fff', fontWeight: '600' },
-  emptyText: { textAlign: 'center', marginTop: 50, color: '#555' },
-});
 
 export default MesDonsScreen;
