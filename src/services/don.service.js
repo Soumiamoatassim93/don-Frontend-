@@ -1,4 +1,6 @@
+// services/dons.service.js
 import { authService } from './auth.service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const donsService = {
   // Récupérer mes dons
@@ -19,47 +21,46 @@ export const donsService = {
     return response.data;
   },
 
-  // Créer un don (pour AddDonScreen)
+  // Créer un don (pour AddDonScreen) - VERSION CORRIGÉE
   createDon: async (formData) => {
-    const token = await import('@react-native-async-storage/async-storage')
-      .then(m => m.default.getItem('auth_token'));
-
-    const response = await fetch(`${authService.api.defaults.baseURL}/dons`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.message || 'Erreur lors de la création');
+    try {
+      // Récupérer le token
+      const token = await AsyncStorage.getItem('auth_token');
+      
+      console.log('🔑 Token présent:', !!token);
+      console.log('📦 Envoi du FormData...');
+      
+      // Debug: Afficher le contenu du FormData
+      if (formData._parts) {
+        for (let i = 0; i < formData._parts.length; i++) {
+          const pair = formData._parts[i];
+          if (pair[1] && typeof pair[1] === 'object' && pair[1].uri) {
+            console.log(`  ${pair[0]}: ${pair[1].name} (${pair[1].type})`);
+          } else {
+            console.log(`  ${pair[0]}: ${pair[1]}`);
+          }
+        }
+      }
+      
+      // Utiliser axios au lieu de fetch pour éviter les problèmes de headers
+      const response = await authService.api.post('/dons', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      console.log('✅ Réponse:', response.data);
+      return response.data;
+      
+    } catch (error) {
+      console.error('❌ Erreur création don:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Erreur lors de la création');
     }
-
-    return response.json();
   },
 
   // Modifier un don (pour EditDonScreen)
   updateDon: async (id, body) => {
-    const token = await import('@react-native-async-storage/async-storage')
-      .then(m => m.default.getItem('auth_token'));
-
-    const response = await fetch(`${authService.api.defaults.baseURL}/dons/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.message || 'Erreur lors de la mise à jour');
-    }
-
-    return response.json();
+    const response = await authService.api.put(`/dons/${id}`, body);
+    return response.data;
   },
 };

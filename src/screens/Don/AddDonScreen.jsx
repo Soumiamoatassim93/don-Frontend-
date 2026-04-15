@@ -1,17 +1,18 @@
-import React          from 'react';
+// screens/Don/AddDonScreen.js
+import React from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import {
   View, Text, ScrollView, Image,
   TextInput, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
-import { useAuth }    from '../../contexts/AuthContext';
-import { useAddDon }  from '../../hooks/useAddDon';
-import { styles }     from './styles/AddDon';
+import { useAuth } from '../../hooks/useAuth'; // ← CHANGÉ: utiliser le hook Redux
+import { useAddDon } from '../../hooks/useAddDon';
+import { styles } from './styles/AddDon';
 
 const colors = { textLight: '#6b7280', primary: '#6366f1' };
 
 const AddDonScreen = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user } = useAuth(); // ← MAINTENANT utilise Redux
   const {
     title, setTitle, description, setDescription,
     address, setAddress, categoryId, setCategoryId,
@@ -19,6 +20,21 @@ const AddDonScreen = ({ navigation }) => {
     categories, categoriesLoading,
     pickImages, removeImage, handleSubmit, getLocation, isLoading,
   } = useAddDon(user, navigation);
+
+  // Vérifier si l'utilisateur est connecté
+  if (!user) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Veuillez vous connecter pour publier un don</Text>
+        <TouchableOpacity 
+          style={styles.loginBtn}
+          onPress={() => navigation.navigate('Login')}
+        >
+          <Text style={styles.loginBtnText}>Se connecter</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
