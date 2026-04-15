@@ -1,97 +1,65 @@
-// TrackingScreen.jsx - Côté owner
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, ScrollView } from 'react-native';
+// screens/TrackingScreen/TrackingScreen.jsx
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
-import io from 'socket.io-client';
-import { API_URL } from '../../../config';
+import { useAuth } from '../../hooks/useAuth';
+import { useTracking } from '../../hooks/useTracking';
 import { styles } from './TrackingScreen.styles';
+
 const TrackingScreen = ({ route, navigation }) => {
   const { request, donation, sender } = route.params;
-  const [socket, setSocket] = useState(null);
-  const [userLocation, setUserLocation] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const {
+    senderLocation,
+    isLoading,
+    socketConnected,
+    error,
+    fetchSenderLocation,
+    clearErrors,
+  } = useTracking();
+
   const [lastUpdate, setLastUpdate] = useState(null);
-const colors = {  primary: '#6366f1',  text: '#111827'};
+
+  // Charger la position initiale du sender
   useEffect(() => {
-    let isMounted = true;
-    
-    console.log('🔌 Owner: Connexion au WebSocket...');
-    console.log('📱 Owner attend positions de user:', sender.id);
-    
-    const newSocket = io(`${API_URL}/tracking-user`, {
-      transports: ['websocket'],
-      reconnection: true,
-    });
+    if (sender?.id) {
+      fetchSenderLocation(sender.id);
+    }
+  }, [sender?.id, fetchSenderLocation]);
 
-    newSocket.on('connect', () => {
-      console.log('✅ Owner: Socket connecté !');
-      setIsConnected(true);
-      
-      // Demander l'historique des positions du sender
-      newSocket.emit('getUserLocations', {
-        userId: sender.id,
-        limit: 50,
-      });
-    });
+  // Afficher les erreurs
+  useEffect(() => {
+    if (error) {
+      console.error('Erreur tracking:', error);
+      clearErrors();
+    }
+  }, [error, clearErrors]);
 
-    newSocket.on('connect_error', (error) => {
-      console.log('❌ Owner: Erreur connexion:', error.message);
-      setIsConnected(false);
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('⚠️ Owner: Socket déconnecté');
-      setIsConnected(false);
-    });
-
-    // ÉCOUTER LES POSITIONS EN TEMPS RÉEL
-    newSocket.on('userLocationUpdated', (location) => {
-      console.log('📍 Owner: Position reçue en temps réel:', location);
-      
-      if (isMounted && location && location.userId === sender.id) {
-        console.log('✅ Owner: Position du sender mise à jour');
-        setUserLocation({
-          latitude: location.latitude,
-          longitude: location.longitude,
-        });
+  // Simuler des mises à jour (à remplacer par WebSocket si besoin)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (sender?.id) {
+        fetchSenderLocation(sender.id);
         setLastUpdate(new Date());
-        setIsLoading(false);
       }
-    });
+    }, 10000); // Toutes les 10 secondes
 
-    // RÉPONSE HISTORIQUE
-    newSocket.on('getUserLocations', (locations) => {
-      console.log(`📜 Owner: Historique reçu: ${locations?.length || 0} positions`);
-      
-      if (isMounted && locations && locations.length > 0) {
-        const lastLocation = locations[locations.length - 1];
-        setUserLocation({
-          latitude: lastLocation.latitude,
-          longitude: lastLocation.longitude,
-        });
-        setLastUpdate(new Date(lastLocation.createdAt));
-      }
-      setIsLoading(false);
-    });
+    return () => clearInterval(interval);
+  }, [sender?.id, fetchSenderLocation]);
 
-    setSocket(newSocket);
-
-    return () => {
-      isMounted = false;
-      newSocket.disconnect();
-    };
-  }, [sender.id]);
+  const openGoogleMaps = () => {
+    if (senderLocation?.latitude && senderLocation?.longitude) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${senderLocation.latitude},${senderLocation.longitude}`;
+      Linking.openURL(url);
+    }
+  };
 
   if (isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#6366f1" />
-        <Text style={styles.loadingText}>Connexion au serveur...</Text>
-        <Text style={styles.loadingSubText}>
-          {isConnected ? 'Connecté, attente des positions...' : 'Tentative de connexion...'}
-        </Text>
+        <Text style={styles.loadingText}>Chargement...</Text>
       </View>
     );
   }
@@ -105,16 +73,16 @@ const colors = {  primary: '#6366f1',  text: '#111827'};
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Suivi du demandeur</Text>
           <Text style={styles.headerSubtitle}>
-            {sender.name || `Utilisateur ${sender.id}`}
+            {sender?.name || `Utilisateur ${sender?.id}`}
           </Text>
         </View>
       </View>
 
       <View style={styles.statusBar}>
         <View style={styles.statusIndicator}>
-          <View style={[styles.dot, isConnected ? styles.dotGreen : styles.dotRed]} />
+          <View style={[styles.dot, socketConnected ? styles.dotGreen : styles.dotRed]} />
           <Text style={styles.statusText}>
-            {isConnected ? 'Connecté' : 'Déconnecté'}
+            {socketConnected ? 'Connecté' : 'Déconnecté'}
           </Text>
         </View>
         {lastUpdate && (
@@ -126,64 +94,46 @@ const colors = {  primary: '#6366f1',  text: '#111827'};
 
       <View style={styles.mapContainer}>
         <Text style={styles.sectionTitle}>
-          {userLocation ? '📍 Position du demandeur' : '⏳ En attente de position...'}
+          {senderLocation ? '📍 Position du demandeur' : '⏳ En attente de position...'}
         </Text>
         <MapView
           style={styles.map}
           initialRegion={{
-            latitude: userLocation?.latitude || donation?.latitude || 33.5731,
-            longitude: userLocation?.longitude || donation?.longitude || -7.5898,
+            latitude: senderLocation?.latitude || donation?.latitude || 33.5731,
+            longitude: senderLocation?.longitude || donation?.longitude || -7.5898,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
         >
-          {userLocation && (
+          {senderLocation && (
             <Marker
-              coordinate={userLocation}
-              title={sender.name || 'Demandeur'}
+              coordinate={senderLocation}
+              title={sender?.name || 'Demandeur'}
               description="Position actuelle"
               pinColor="#6366f1"
+            />
+          )}
+          {donation?.latitude && donation?.longitude && (
+            <Marker
+              coordinate={{
+                latitude: parseFloat(donation.latitude),
+                longitude: parseFloat(donation.longitude),
+              }}
+              title={donation?.title}
+              description="Position du don"
+              pinColor="#ef4444"
             />
           )}
         </MapView>
       </View>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.cardTitle}>📦 Informations</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Don:</Text>
-          <Text style={styles.infoValue}>{donation?.title}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Statut:</Text>
-          <Text style={[styles.infoValue, styles.statusAccepted]}>Accepté</Text>
-        </View>
-        {userLocation && (
-          <>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Latitude:</Text>
-              <Text style={styles.infoValue}>{userLocation.latitude.toFixed(6)}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Longitude:</Text>
-              <Text style={styles.infoValue}>{userLocation.longitude.toFixed(6)}</Text>
-            </View>
-          </>
-        )}
-      </View>
-
       <TouchableOpacity 
-        style={[styles.navigateBtn, !userLocation && styles.disabledBtn]} 
-        onPress={() => {
-          if (userLocation) {
-            const url = `https://www.google.com/maps/search/?api=1&query=${userLocation.latitude},${userLocation.longitude}`;
-            Linking.openURL(url);
-          }
-        }}
-        disabled={!userLocation}
+        style={[styles.navigateBtn, !senderLocation && styles.disabledBtn]} 
+        onPress={openGoogleMaps}
+        disabled={!senderLocation}
       >
         <Text style={styles.navigateBtnText}>
-          {userLocation ? '🗺️ Ouvrir dans Google Maps' : '⏳ Position non disponible'}
+          {senderLocation ? '🗺️ Ouvrir dans Google Maps' : '⏳ Position non disponible'}
         </Text>
       </TouchableOpacity>
     </SafeAreaView>

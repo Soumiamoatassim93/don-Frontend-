@@ -1,9 +1,10 @@
+// CustomDrawerContent.js - VERSION CORRIGÉE AVEC REDUX
 import React from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
 } from 'react-native';
 import { DrawerContentScrollView } from '@react-navigation/drawer';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth'; // ← CHANGÉ : utilisez le hook Redux
 
 const colors = {
   primary: '#6366f1',
@@ -14,7 +15,6 @@ const colors = {
   danger: '#ef4444',
 };
 
-// CustomDrawerContent.jsx — ajouter dans menuItems
 const menuItems = [
   { name: 'Home',            label: 'Accueil',       icon: '🏠' },
   { name: 'MesDons',         label: 'Mes Dons',      icon: '📦' },
@@ -26,13 +26,20 @@ const menuItems = [
 
 const CustomDrawerContent = (props) => {
   const { navigation, state } = props;
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuth(); // ← CHANGÉ : utilisez le hook Redux
   const activeRouteName = state.routeNames[state.index];
 
-  const handleLogout = () => {
+  const handleLogout = async () => { // ← CHANGÉ : async
     Alert.alert('Déconnexion', 'Voulez-vous vraiment vous déconnecter ?', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Déconnexion', style: 'destructive', onPress: logout },
+      { 
+        text: 'Déconnexion', 
+        style: 'destructive', 
+        onPress: async () => {
+          await logout(); // ← CHANGÉ : await logout
+          // La navigation se fera automatiquement car isAuthenticated devient false
+        } 
+      },
     ]);
   };
 

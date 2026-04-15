@@ -1,7 +1,8 @@
-import React from 'react';
+// AppNavigator.js - Version complète
+import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import AuthStack from './AuthStack';
 import AppStack from './AppStack';
 
@@ -13,7 +14,14 @@ const LoadingSpinner = () => (
 );
 
 const AppNavigator = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, checkAuthStatus } = useAuth();
+
+  useEffect(() => {
+    // Vérifier si l'utilisateur est déjà connecté au démarrage
+    checkAuthStatus();
+  }, []);
+
+  console.log('AppNavigator - isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
 
   if (isLoading) return <LoadingSpinner />;
 

@@ -1,9 +1,8 @@
-// screens/SenderTrackingScreen.jsx (Version complète avec WebSocket)
-import React, { useState, useEffect, useRef } from 'react';
+// screens/SenderTracking/SenderTrackingScreen.jsx
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
@@ -12,140 +11,60 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
-import * as Location from 'expo-location';
-import io from 'socket.io-client';
-import { authService } from '../../services/auth.service';
-import { API_URL } from '../../../config';
+import { useAuth } from '../../hooks/useAuth';
+import { useTracking } from '../../hooks/useTracking';
+import { styles } from './SenderTracking';
 
 const SenderTrackingScreen = ({ route, navigation }) => {
   const { request: requestData, donation } = route.params;
-  const [donationLocation, setDonationLocation] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLocationActive, setIsLocationActive] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState(null);
-  const [locationSubscription, setLocationSubscription] = useState(null);
-  const [socket, setSocket] = useState(null);
-  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const { user } = useAuth();
+  const {
+    currentLocation,
+    isLocationActive,
+    isLoading,
+    socketConnected,
+    error,
+    startUserTracking,
+    stopUserTracking,
+    clearErrors,
+    setLocationActive,
+  } = useTracking();
 
-  // Initialiser WebSocket
+  const [isActivating, setIsActivating] = useState(false);
+
+  // Utiliser directement les coordonnées du don depuis les paramètres
+  const donationLocation = donation?.latitude && donation?.longitude ? {
+    latitude: parseFloat(donation.latitude),
+    longitude: parseFloat(donation.longitude),
+  } : null;
+
+  // Nettoyer le tracking à la fermeture
   useEffect(() => {
-    const initSocket = async () => {
-      const newSocket = io(`${API_URL}/tracking-user`, {
-        transports: ['websocket'],
-        reconnection: true,
-      });
-
-      newSocket.on('connect', () => {
-        console.log('✅ Socket sender connecté');
-        setIsSocketConnected(true);
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('❌ Socket sender déconnecté');
-        setIsSocketConnected(false);
-      });
-
-      setSocket(newSocket);
-    };
-
-    initSocket();
-
     return () => {
-      if (socket) {
-        socket.disconnect();
-      }
-      if (locationSubscription) {
-        locationSubscription.remove();
+      if (isLocationActive) {
+        stopUserTracking();
       }
     };
-  }, []);
+  }, [isLocationActive, stopUserTracking]);
 
+  // Afficher les erreurs
   useEffect(() => {
-    if (donation && donation.latitude && donation.longitude) {
-      setDonationLocation({
-        latitude: parseFloat(donation.latitude),
-        longitude: parseFloat(donation.longitude),
-      });
+    if (error) {
+      Alert.alert('Erreur', error);
+      clearErrors();
     }
-    setIsLoading(false);
-  }, [donation]);
+  }, [error, clearErrors]);
 
   const activateLocation = async () => {
     try {
-      // Demander la permission
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission refusée',
-          'Vous devez activer la localisation pour partager votre position'
-        );
-        return;
-      }
-
-      setIsLocationActive(true);
-
-      // Obtenir la position actuelle
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const user = await authService.getCurrentUser();
-      
-      setCurrentLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      // Envoyer la première position
-      if (socket && isSocketConnected && user) {
-        socket.emit('updateUserLocation', {
-          userId: user.id,
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-        console.log('📍 Première position envoyée');
-      }
-
-      // Démarrer le suivi en temps réel
-      const subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000, // toutes les 5 secondes
-          distanceInterval: 10, // ou si déplacement > 10m
-        },
-        async (newLocation) => {
-          console.log('📍 Nouvelle position:', newLocation.coords.latitude, newLocation.coords.longitude);
-          
-          setCurrentLocation({
-            latitude: newLocation.coords.latitude,
-            longitude: newLocation.coords.longitude,
-          });
-          
-          // Envoyer la position via WebSocket
-          const user = await authService.getCurrentUser();
-          if (socket && isSocketConnected && user) {
-            socket.emit('updateUserLocation', {
-              userId: user.id,
-              latitude: newLocation.coords.latitude,
-              longitude: newLocation.coords.longitude,
-            });
-            console.log('📤 Position envoyée au serveur');
-          } else {
-            console.log('⚠️ Socket non connecté, impossible d\'envoyer la position');
-          }
-        }
-      );
-
-      setLocationSubscription(subscription);
-
-      Alert.alert(
-        'Succès',
-        'Votre position est maintenant partagée avec le propriétaire'
-      );
+      setIsActivating(true);
+      await startUserTracking(user.id);
+      setLocationActive(true);
+      Alert.alert('Succès', 'Votre position est maintenant partagée avec le propriétaire');
     } catch (error) {
-      console.error('Erreur localisation:', error);
       Alert.alert('Erreur', 'Impossible d\'activer la localisation');
+    } finally {
+      setIsActivating(false);
     }
   };
 
@@ -166,6 +85,13 @@ const SenderTrackingScreen = ({ route, navigation }) => {
     );
   }
 
+  const initialRegion = {
+    latitude: donationLocation?.latitude || 33.5731,
+    longitude: donationLocation?.longitude || -7.5898,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -180,33 +106,23 @@ const SenderTrackingScreen = ({ route, navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Status WebSocket */}
         <View style={styles.wsStatusCard}>
           <View style={styles.statusRow}>
             <Text style={styles.statusLabel}>📡 WebSocket:</Text>
-            <View style={[styles.statusDot, isSocketConnected ? styles.dotGreen : styles.dotRed]} />
+            <View style={[styles.statusDot, socketConnected ? styles.dotGreen : styles.dotRed]} />
             <Text style={styles.statusText}>
-              {isSocketConnected ? 'Connecté' : 'Déconnecté'}
+              {socketConnected ? 'Connecté' : 'Déconnecté'}
             </Text>
           </View>
         </View>
 
-        {/* Carte */}
         <View style={styles.mapContainer}>
           <Text style={styles.sectionTitle}>📍 Position du don</Text>
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: donationLocation?.latitude || 33.5731,
-              longitude: donationLocation?.longitude || -7.5898,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            }}
-          >
+          <MapView style={styles.map} initialRegion={initialRegion}>
             {donationLocation && (
               <Marker
                 coordinate={donationLocation}
-                title={donation.title}
+                title={donation?.title}
                 description="Position du don"
                 pinColor="#ef4444"
               />
@@ -222,7 +138,6 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           </MapView>
         </View>
 
-        {/* Activation localisation */}
         <View style={styles.activationCard}>
           <Text style={styles.cardTitle}>📍 Partager ma position</Text>
           <Text style={styles.cardDescription}>
@@ -232,10 +147,11 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           <TouchableOpacity 
             style={[styles.activateBtn, isLocationActive && styles.activateBtnActive]} 
             onPress={activateLocation}
-            disabled={isLocationActive}
+            disabled={isLocationActive || isActivating}
           >
             <Text style={styles.activateBtnText}>
-              {isLocationActive ? '✓ Localisation activée' : '📡 Activer la localisation'}
+              {isActivating ? 'Activation...' : 
+               isLocationActive ? '✓ Localisation activée' : '📡 Activer la localisation'}
             </Text>
           </TouchableOpacity>
           
@@ -251,12 +167,11 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Infos don */}
         <View style={styles.infoCard}>
           <Text style={styles.cardTitle}>📦 Informations du don</Text>
-          <Text style={styles.donTitle}>{donation.title}</Text>
-          <Text style={styles.donDescription}>{donation.description}</Text>
-          {donation.address && (
+          <Text style={styles.donTitle}>{donation?.title}</Text>
+          <Text style={styles.donDescription}>{donation?.description}</Text>
+          {donation?.address && (
             <Text style={styles.donAddress}>📍 {donation.address}</Text>
           )}
           
@@ -265,7 +180,6 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Instructions */}
         <View style={styles.instructionsCard}>
           <Text style={styles.instructionsTitle}>📌 Instructions</Text>
           <Text style={styles.instructionsText}>
@@ -279,7 +193,7 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           style={styles.messageBtn}
           onPress={() => {
             navigation.navigate('Messagerie', {
-              receiverId: donation.userId,
+              receiverId: donation?.userId,
               receiverName: 'Propriétaire',
             });
           }}

@@ -1,24 +1,19 @@
+// screens/RequestScreen/RequestsScreen.js - Version avec le hook complet
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-   View, Text, FlatList, StyleSheet,
-  Image, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Alert,
+  View, Text, FlatList, Image, TouchableOpacity, 
+  ActivityIndicator, RefreshControl, Alert
 } from 'react-native';
-import { authService } from '../../services/auth.service';
-import { API_URL } from '../../../config';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../hooks/useAuth';
+import { useRequests } from '../../hooks/useRequests';
+import { API_URL } from '../../../config';
 import { styles } from './RequestStyle';
+
 const colors = {
   primary: '#6366f1',
-  text: '#111827',
-  textLight: '#6b7280',
-  background: '#f9fafb',
-  card: '#ffffff',
-  available: '#10b981',
-  rejected: '#ef4444',
 };
 
-// ✅ STATUS CORRIGÉ (backend)
 const STATUS_CONFIG = {
   en_cours: { label: 'En attente', color: '#f59e0b', bg: '#fef3c7' },
   accepte: { label: 'Acceptée', color: '#10b981', bg: '#d1fae5' },
@@ -28,17 +23,11 @@ const STATUS_CONFIG = {
 
 const getStatus = (status) => STATUS_CONFIG[status] || STATUS_CONFIG.default;
 
-// ✅ IMAGE FIX
 const getImageUri = (don) => {
-  if (!don || !Array.isArray(don.images) || don.images.length === 0) {
-    return null;
-  }
-
+  if (!don?.images?.length) return null;
   const img = don.images[0];
-
   if (img.url) return `${API_URL}${img.url}`;
   if (img.filename) return `${API_URL}/uploads/${img.filename}`;
-
   return null;
 };
 
@@ -47,24 +36,18 @@ const TABS = [
   { key: 'received', label: 'Demandes reçues' },
 ];
 
-/// ── CARD ─────────────────────────────────────────
-const RequestCard = ({
-  item, activeTab, onCancel, onAccept, onReject, onDelete,onTrack,onViewDonLocation
-}) => {
+const RequestCard = ({ item, activeTab, onCancel, onAccept, onReject, onTrack, onViewDonLocation }) => {
   const don = item.don || {};
   const status = getStatus(item.status);
   const image = getImageUri(don);
-
   const isPending = item.status === 'en_cours';
   const isAccepted = item.status === 'accepte';
   const isRefused = item.status === 'refuse';
   const isSent = activeTab === 'sent';
-
   const sender = item.userId || {};
 
   return (
     <View style={styles.card}>
-      {/* IMAGE */}
       {image ? (
         <Image source={{ uri: image }} style={styles.cardImage} />
       ) : (
@@ -73,35 +56,27 @@ const RequestCard = ({
         </View>
       )}
 
-      {/* STATUS */}
       <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
         <Text style={[styles.statusBadgeText, { color: status.color }]}>
           {status.label}
         </Text>
       </View>
 
-      {/* CONTENT */}
       <View style={styles.cardContent}>
         <Text style={styles.cardTitle} numberOfLines={2}>
           {don.title || 'Don supprimé'}
         </Text>
 
-        {don.address && (
-          <Text style={styles.cardAddress}>{don.address}</Text>
-        )}
+        {don.address && <Text style={styles.cardAddress}>{don.address}</Text>}
 
-        {/* Afficher le demandeur uniquement pour les demandes reçues */}
         {!isSent && (sender?.name || sender?.email) && (
           <View style={styles.senderRow}>
             <View style={styles.senderAvatar}>
               <Text style={styles.senderAvatarText}>
-                {sender.name?.[0]?.toUpperCase() ||
-                  sender.email?.[0]?.toUpperCase() || '?'}
+                {sender.name?.[0]?.toUpperCase() || sender.email?.[0]?.toUpperCase() || '?'}
               </Text>
             </View>
-            <Text style={styles.senderName}>
-              {sender.name || sender.email}
-            </Text>
+            <Text style={styles.senderName}>{sender.name || sender.email}</Text>
           </View>
         )}
 
@@ -109,241 +84,160 @@ const RequestCard = ({
           {new Date(item.createdAt).toLocaleDateString('fr-FR')}
         </Text>
 
-        {/* ACTIONS POUR DEMANDES ENVOYÉES */}
-        {isSent && (
-  <>
-    {/* Si la demande est en attente, afficher Annuler */}
-    {isPending && (
-      <TouchableOpacity
-        style={styles.cancelBtn}
-        onPress={() => onCancel(item)}
-      >
-        <Text style={styles.cancelBtnText}>Annuler</Text>
-      </TouchableOpacity>
-    )}
-    
-    {/* Si la demande est acceptée */}
-    {isAccepted && (
-      <>
-        <View style={styles.statusMessageContainer}>
-          <Text style={[styles.statusMessage, styles.acceptedMessage]}>
-            ✓ Demande acceptée
-          </Text>
-        </View>
+        {/* Actions pour demandes envoyées */}
+        {isSent && isPending && (
+          <TouchableOpacity style={styles.cancelBtn} onPress={() => onCancel(item)}>
+            <Text style={styles.cancelBtnText}>Annuler</Text>
+          </TouchableOpacity>
+        )}
         
-        {/* Bouton pour voir la position du don */}
-        <TouchableOpacity
-          style={styles.viewDonBtn}
-          onPress={() => onViewDonLocation(item)}
-        >
-          <Text style={styles.viewDonBtnText}>📍 Voir la position du don</Text>
-        </TouchableOpacity>
-      </>
-    )}
-    
-    {/* Si la demande est refusée */}
-    {isRefused && (
-      <View style={styles.statusMessageContainer}>
-        <Text style={[styles.statusMessage, styles.refusedMessage]}>
-          ✗ Demande refusée
-        </Text>
-      </View>
-    )}
-  </>
-)}
-         
-
-        {/* ACTIONS POUR DEMANDES REÇUES */}
-        {!isSent && (
+        {isSent && isAccepted && (
           <>
-            {/* Si la demande est en attente, afficher Accepter/Refuser */}
-            {isPending && (
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.rejectBtn]}
-                  onPress={() => onReject(item)}
-                >
-                  <Text style={styles.rejectBtnText}>Refuser</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.acceptBtn]}
-                  onPress={() => onAccept(item)}
-                >
-                  <Text style={styles.acceptBtnText}>Accepter</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            
-            {/* Si la demande est déjà traitée, afficher seulement le statut */}
-            {(isAccepted || isRefused) && (
-              <View style={styles.statusMessageContainer}>
-                <Text style={[
-                  styles.statusMessage,
-                  isAccepted ? styles.acceptedMessage : styles.refusedMessage
-                ]}>
-                  {!isSent && isAccepted && (
-  <TouchableOpacity
-    style={styles.trackBtn}
-    onPress={() => onTrack(item)}
-  >
-    <Text style={styles.trackBtnText}>📍 Suivre la position</Text>
-  </TouchableOpacity>
-)}
-                </Text>
-              </View>
-            )}
+            <View style={styles.statusMessageContainer}>
+              <Text style={[styles.statusMessage, styles.acceptedMessage]}>
+                ✓ Demande acceptée
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.viewDonBtn} onPress={() => onViewDonLocation(item)}>
+              <Text style={styles.viewDonBtnText}>📍 Voir la position du don</Text>
+            </TouchableOpacity>
           </>
+        )}
+        
+        {isSent && isRefused && (
+          <View style={styles.statusMessageContainer}>
+            <Text style={[styles.statusMessage, styles.refusedMessage]}>
+              ✗ Demande refusée
+            </Text>
+          </View>
+        )}
+
+        {/* Actions pour demandes reçues */}
+        {!isSent && isPending && (
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={() => onReject(item)}>
+              <Text style={styles.rejectBtnText}>Refuser</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, styles.acceptBtn]} onPress={() => onAccept(item)}>
+              <Text style={styles.acceptBtnText}>Accepter</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {!isSent && isAccepted && (
+          <TouchableOpacity style={styles.trackBtn} onPress={() => onTrack(item)}>
+            <Text style={styles.trackBtnText}>📍 Suivre la position</Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
   );
 };
 
-// ── SCREEN ─────────────────────────────────────────
-const RequestsScreen = ({navigation}) => {
+const RequestsScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('sent');
-  const [sentRequests, setSentRequests] = useState([]);
-  const [receivedRequests, setReceivedRequests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { user } = useAuth();
+  const {
+    sentRequests,
+    receivedRequests,
+    fetchLoading,
+    actionLoading,
+    getSentRequests,
+    getReceivedRequests,
+    accept,
+    refuse,
+    cancel,
+    clearErrors,
+  } = useRequests();
 
-const fetchRequests = useCallback(async () => {
-  try {
-    const user = await authService.getCurrentUser();
-    console.log('Current user:', user);
+  const fetchAllRequests = useCallback(async () => {
+    if (!user?.id) return;
     
-    // Récupérer les demandes envoyées
-    const sentRes = await authService.api.get(`/requests/sent/${user.id}`);
-    const sentData = sentRes.data || [];
-    console.log('Sent requests:', sentData);
-    
-    // Récupérer les demandes reçues
-    const receivedRes = await authService.api.get(`/requests/received/${user.id}`);
-    const receivedData = receivedRes.data || [];
-    console.log('Received requests:', receivedData);
-    
-    // Enrichir avec les détails des dons
-    const enrichedSent = await Promise.all(
-      sentData.map(async (req) => {
-        try {
-          const donRes = await authService.api.get(`/dons/${req.donationId}`);
-          return { ...req, don: donRes.data };
-        } catch (error) {
-          console.error(`Error fetching don ${req.donationId}:`, error);
-          return req;
-        }
-      })
-    );
-    
-    const enrichedReceived = await Promise.all(
-      receivedData.map(async (req) => {
-        try {
-          const donRes = await authService.api.get(`/dons/${req.donationId}`);
-          return { ...req, don: donRes.data };
-        } catch (error) {
-          console.error(`Error fetching don ${req.donationId}:`, error);
-          return req;
-        }
-      })
-    );
-    
-    setSentRequests(enrichedSent);
-    setReceivedRequests(enrichedReceived);
-    
-  } catch (error) {
-    console.error('Error fetching requests:', error);
-    Alert.alert('Erreur', 'Impossible de charger les demandes');
-  } finally {
-    setIsLoading(false);
-    setRefreshing(false);
-  }
-}, []);
+    try {
+      await Promise.all([
+        getSentRequests(user.id),
+        getReceivedRequests(user.id),
+      ]);
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de charger les demandes');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user?.id, getSentRequests, getReceivedRequests]);
 
-  // Rafraîchissement manuel
+  useEffect(() => {
+    fetchAllRequests();
+  }, [fetchAllRequests]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchAllRequests();
+    });
+    return unsubscribe;
+  }, [navigation, fetchAllRequests]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchRequests();
-  }, [fetchRequests]);
+    fetchAllRequests();
+  }, [fetchAllRequests]);
 
-  useEffect(() => { 
-    fetchRequests(); 
-    
-    // Ajouter un focus listener pour rafraîchir quand l'écran revient au premier plan
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchRequests();
-    });
-    
-    return unsubscribe;
-  }, [fetchRequests, navigation]);
-
-  // ACTIONS avec rafraîchissement automatique
   const handleAccept = async (request) => {
     try {
-      await authService.api.put(`/requests/${request.id}/accept`);
-      // Rafraîchir les données
-      await fetchRequests();
+      await accept(request.id, request);
+      Alert.alert('Succès', 'Demande acceptée');
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible d\'accepter la demande');
+      Alert.alert('Erreur', "Impossible d'accepter la demande");
     }
   };
 
-
-const handleViewDonLocation = (request) => {
-  console.log('Voir position du don:', request);
-  
-  // Utiliser l'écran SenderTracking existant
-  navigation.navigate('SenderTracking', {
-    request: request,
-    donation: request.don,
-  });
-};
   const handleReject = async (request) => {
     try {
-      await authService.api.put(`/requests/${request.id}/refuse`);
-      // Rafraîchir les données
-      await fetchRequests();
+      await refuse(request.id, request);
+      Alert.alert('Succès', 'Demande refusée');
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de refuser la demande');
+      Alert.alert('Erreur', "Impossible de refuser la demande");
     }
   };
 
-  const handleCancel = async (request) => {
-    try {
-      await authService.api.delete(`/requests/${request.id}`);
-      // Rafraîchir les données
-      await fetchRequests();
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible d\'annuler la demande');
-    }
+  const handleCancel = (request) => {
+    Alert.alert(
+      'Annuler la demande',
+      'Voulez-vous vraiment annuler cette demande ?',
+      [
+        { text: 'Non', style: 'cancel' },
+        {
+          text: 'Oui',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancel(request.id, true);
+              Alert.alert('Succès', 'Demande annulée');
+            } catch (error) {
+              Alert.alert('Erreur', "Impossible d'annuler la demande");
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const handleDelete = async (request, type) => {
-    try {
-      await authService.api.delete(`/requests/${request.id}`);
-      // Rafraîchir les données
-      await fetchRequests();
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de supprimer la demande');
-    }
+  const handleViewDonLocation = (request) => {
+    navigation.navigate('SenderTracking', {
+      request: request,
+      donation: request.don,
+    });
   };
 
-  // Dans RequestsScreen, ajoutez la fonction handleTrack
-const handleTrack = (request) => {
-  const sender = {
-    id: request.userId,
-    name: request.user?.name,
-    email: request.user?.email,
+  const handleTrack = (request) => {
+    navigation.navigate('Tracking', {
+      request: request,
+      donation: request.don,
+      sender: { id: request.userId, name: request.user?.name, email: request.user?.email },
+    });
   };
-  
-  navigation.navigate('Tracking', {
-    request: request,
-    donation: request.don,
-    sender: sender,
-  });
-};
 
-  if (isLoading) {
+  if (fetchLoading && !refreshing) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -355,7 +249,6 @@ const handleTrack = (request) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -365,7 +258,6 @@ const handleTrack = (request) => {
         </View>
       </View>
 
-      {/* TABS */}
       <View style={styles.tabs}>
         {TABS.map(tab => (
           <TouchableOpacity
@@ -373,20 +265,16 @@ const handleTrack = (request) => {
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[
-              styles.tabText,
-              activeTab === tab.key && styles.tabTextActive
-            ]}>
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
               {tab.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* LIST avec RefreshControl */}
       <FlatList
         data={data}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={item => item.id?.toString() || Math.random().toString()}
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.list}
@@ -405,7 +293,6 @@ const handleTrack = (request) => {
             onCancel={handleCancel}
             onAccept={handleAccept}
             onReject={handleReject}
-            onDelete={handleDelete}
             onTrack={handleTrack}
             onViewDonLocation={handleViewDonLocation}
           />
@@ -419,6 +306,5 @@ const handleTrack = (request) => {
     </SafeAreaView>
   );
 };
-
 
 export default RequestsScreen;
