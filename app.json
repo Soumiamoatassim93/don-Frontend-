@@ -19,14 +19,21 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff",
-        "permissions": ["ACCESS_FINE_LOCATION"]
-
+        "permissions": [
+          "ACCESS_FINE_LOCATION"
+        ]
       },
       "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "package": "com.imanezaazaa.donfrontend"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "99fd3b60-2c3c-4e58-81ac-fea81980531b"
+      }
     }
   }
 }

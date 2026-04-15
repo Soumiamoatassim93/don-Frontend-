@@ -1,12 +1,13 @@
+// screens/HomeScreen/HomeScreen.js
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, Image, TouchableOpacity,
   ActivityIndicator, RefreshControl, ScrollView, TextInput,
 } from 'react-native';
-import { useAuth }   from '../../contexts/AuthContext';
-import { useHome }   from '../../hooks/useHome';
-import { API_URL }   from '../../../config';
-import { styles }    from './HomeStyle.styles';
+import { useAuth } from '../../hooks/useAuth'; // ← CHANGÉ: utiliser Redux
+import { useHome } from '../../hooks/useHome';
+import { API_URL } from '../../../config';
+import { styles } from './HomeStyle.styles';
 
 const colors = {
   text: '#111827', textLight: '#6b7280',
@@ -76,8 +77,8 @@ const DonCard = ({ don, onPress, onFavorite, onRequest, isFavorite }) => {
 };
 
 const HomeScreen = ({ navigation }) => {
-  const { user }                           = useAuth();
-  const [search, setSearch]               = useState('');
+  const { user } = useAuth(); // ← CHANGÉ: utilise Redux
+  const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Tous');
 
   const {
