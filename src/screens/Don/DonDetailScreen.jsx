@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  Image, Dimensions, TouchableOpacity, Alert,
+  View, Text, ScrollView, Image, Dimensions, TouchableOpacity, Alert, ActivityIndicator
 } from 'react-native';
 import { API_URL } from '../../../config';
 import { authService } from '../../services/auth.service';
 import { styles } from './styles/DonDetail';
+
 const { width } = Dimensions.get('window');
 
 const colors = {
@@ -19,47 +19,66 @@ const colors = {
   reqColor: '#6d28d9',
 };
 
-// Fonction corrigée pour obtenir l'URL de l'image
 const getImageUri = (img) => {
   if (!img) return null;
-  
-  // Si c'est une chaîne de caractères
   if (typeof img === 'string') {
     if (img.startsWith('http')) return img;
-    // Supprimer le préfixe /uploads/ s'il existe déjà
     const cleanPath = img.replace(/^\/?uploads\//, '');
     return `${API_URL}/uploads/${cleanPath}`;
   }
-  
-  // Si c'est un objet avec une propriété url
   if (img.url) {
     if (img.url.startsWith('http')) return img.url;
-    // Supprimer le préfixe /uploads/ s'il existe déjà
     const cleanPath = img.url.replace(/^\/?uploads\//, '');
     return `${API_URL}/uploads/${cleanPath}`;
   }
-  
-  // Si c'est un objet avec filename ou path
-  if (img.filename) {
-    return `${API_URL}/uploads/${img.filename}`;
-  }
-  if (img.path) {
-    return `${API_URL}/uploads/${img.path}`;
-  }
-  
+  if (img.filename) return `${API_URL}/uploads/${img.filename}`;
+  if (img.path) return `${API_URL}/uploads/${img.path}`;
   return null;
 };
 
 const DonDetailScreen = ({ route, navigation }) => {
   const { don } = route.params;
-  const images = Array.isArray(don.images) ? don.images : [];
+  const [donDetails, setDonDetails] = useState(don);
+  const [donateur, setDonateur] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [imageErrors, setImageErrors] = useState({});
   const [activeIndex, setActiveIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [loadingRequest, setLoadingRequest] = useState(false);
-  const [imageErrors, setImageErrors] = useState({});
 
-  // Vérifier si le don est déjà en favori au chargement
+  const images = Array.isArray(donDetails.images) ? donDetails.images : [];
+
+  // 🔥 Charger les détails du don ET le donateur
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // 1. Charger les détails complets du don
+        const donResponse = await authService.api.get(`/dons/${don.id}`);
+        const donData = donResponse.data;
+        setDonDetails(donData);
+        
+        // 2. Charger les infos du donateur (user)
+        if (donData.userId) {
+          try {
+            const userResponse = await authService.api.get(`/users/${donData.userId}`);
+            setDonateur(userResponse.data);
+            console.log('👤 Donateur chargé:', userResponse.data);
+          } catch (userErr) {
+            console.log('Erreur chargement donateur:', userErr);
+          }
+        }
+      } catch (error) {
+        console.error('Erreur chargement:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [don.id]);
+
+  // Vérifier les favoris
   useEffect(() => {
     const checkFavorite = async () => {
       try {
@@ -76,44 +95,33 @@ const DonDetailScreen = ({ route, navigation }) => {
   const handleFavorite = useCallback(async () => {
     try {
       const user = await authService.getCurrentUser();
-      
       if (isFavorite) {
-        // Supprimer des favoris
         await authService.api.delete(`/favorites/${user.id}/${don.id}`);
         setIsFavorite(false);
         Alert.alert('Succès', 'Retiré des favoris');
       } else {
-        // Ajouter aux favoris
-        await authService.api.post('/favorites', {
-          userId: user.id,
-          donId: don.id,
-        });
+        await authService.api.post('/favorites', { userId: user.id, donId: don.id });
         setIsFavorite(true);
         Alert.alert('Succès', 'Ajouté aux favoris');
       }
     } catch (err) {
-      console.log('❌ favorite error:', err.response?.data || err.message);
       Alert.alert('Erreur', 'Impossible de modifier les favoris');
     }
   }, [isFavorite, don.id]);
 
   const handleRequest = useCallback(async () => {
     if (requestSent || loadingRequest) return;
-    
     setLoadingRequest(true);
     try {
       const user = await authService.getCurrentUser();
-      
       await authService.api.post('/requests', {
         userId: user.id,
         donationId: don.id,
         status: 'pending',
       });
-      
       setRequestSent(true);
       Alert.alert('Succès', 'Demande envoyée ✔️');
     } catch (err) {
-      console.log('❌ request error:', err.response?.data || err.message);
       Alert.alert('Erreur', 'Impossible d’envoyer la demande');
     } finally {
       setLoadingRequest(false);
@@ -124,10 +132,18 @@ const DonDetailScreen = ({ route, navigation }) => {
     setImageErrors(prev => ({ ...prev, [index]: true }));
   };
 
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 10 }}>Chargement...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrapper}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
-
         {/* Images */}
         {images.length > 0 ? (
           <View>
@@ -150,7 +166,6 @@ const DonDetailScreen = ({ route, navigation }) => {
                     </View>
                   );
                 }
-                
                 return (
                   <Image
                     key={index}
@@ -158,7 +173,6 @@ const DonDetailScreen = ({ route, navigation }) => {
                     style={styles.fullImage}
                     resizeMode="cover"
                     onError={() => handleImageError(index)}
-                    onLoad={() => console.log(`Image ${index} chargée: ${imageUri}`)}
                   />
                 );
               })}
@@ -178,12 +192,11 @@ const DonDetailScreen = ({ route, navigation }) => {
         )}
 
         <View style={styles.content}>
-          {/* Titre + badge + favori */}
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{don.title}</Text>
+            <Text style={styles.title}>{donDetails.title}</Text>
             <View style={styles.titleRight}>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{don.status || 'Disponible'}</Text>
+                <Text style={styles.badgeText}>{donDetails.status || 'Disponible'}</Text>
               </View>
               <TouchableOpacity style={styles.favIconBtn} onPress={handleFavorite}>
                 <Text style={styles.favIcon}>{isFavorite ? '❤️' : '🤍'}</Text>
@@ -191,51 +204,48 @@ const DonDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          {/* Adresse */}
-          {don.address ? (
+          {donDetails.address ? (
             <View style={styles.row}>
               <Text style={styles.rowIcon}>📍</Text>
-              <Text style={styles.rowText}>{don.address}</Text>
+              <Text style={styles.rowText}>{donDetails.address}</Text>
             </View>
           ) : null}
 
-          {/* Date */}
           <View style={styles.row}>
             <Text style={styles.rowIcon}>📅</Text>
             <Text style={styles.rowText}>
-              {new Date(don.createdAt).toLocaleDateString('fr-FR', {
+              {new Date(donDetails.createdAt).toLocaleDateString('fr-FR', {
                 day: 'numeric', month: 'long', year: 'numeric',
               })}
             </Text>
           </View>
 
-          {/* Catégorie si disponible */}
-          {don.category ? (
+          {donDetails.category ? (
             <View style={styles.row}>
               <Text style={styles.rowIcon}>🏷️</Text>
-              <Text style={styles.rowText}>{don.category}</Text>
+              <Text style={styles.rowText}>{donDetails.category}</Text>
             </View>
           ) : null}
 
           <View style={styles.divider} />
 
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{don.description || 'Aucune description fournie'}</Text>
+          <Text style={styles.description}>{donDetails.description || 'Aucune description fournie'}</Text>
 
-          {/* Donateur */}
-          {don.user && (
+          {/* 🔥 SECTION DONATEUR - MAINTENANT AVEC LES DONNÉES CHARGÉES */}
+          {donateur && (
             <>
               <View style={styles.divider} />
               <Text style={styles.sectionTitle}>Donateur</Text>
               <View style={styles.donateurRow}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
-                    {don.user.name?.[0]?.toUpperCase() || don.user.email?.[0]?.toUpperCase() || '?'}
+                    {donateur.name?.[0]?.toUpperCase() || donateur.email?.[0]?.toUpperCase() || '?'}
                   </Text>
                 </View>
                 <View>
-                  <Text style={styles.donateurName}>{don.user.name || 'Anonyme'}</Text>
-                  <Text style={styles.donateurEmail}>{don.user.email}</Text>
+                  <Text style={styles.donateurName}>{donateur.name || 'Anonyme'}</Text>
+                  <Text style={styles.donateurEmail}>{donateur.email}</Text>
                 </View>
               </View>
             </>
@@ -247,7 +257,22 @@ const DonDetailScreen = ({ route, navigation }) => {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={[styles.bottomBtn, styles.msgBtn]}
-          onPress={() => navigation.navigate('Messagerie', { don, recipient: don.user })}
+          onPress={() => {
+            if (!donateur) {
+              Alert.alert('Erreur', 'Donateur non trouvé');
+              return;
+            }
+            navigation.navigate('MessagerieDrawer', {
+              screen: 'ChatRoom',
+              params: {
+                recipient: {
+                  id: donateur.id,
+                  name: donateur.name || 'Donateur',
+                  email: donateur.email
+                }
+              }
+            });
+          }}
         >
           <Text style={[styles.bottomBtnText, { color: colors.reqColor }]}>💬 Contacter</Text>
         </TouchableOpacity>

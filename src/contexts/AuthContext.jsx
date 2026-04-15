@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/auth.service';
+import socketService from '../services/socket.service'; // ← AJOUTE CETTE LIGNE
 
 const AuthContext = createContext();
 
@@ -22,28 +23,39 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkAuthStatus = async () => {
-  try {
-    await AsyncStorage.clear(); // ← ajoute cette ligne temporairement
-    const token = await AsyncStorage.getItem('auth_token');
-    if (token) {
-      const userData = await AsyncStorage.getItem('user');
-      if (userData) {
-        setUser(JSON.parse(userData));
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (token) {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+          
+          // 🔥 AJOUTE CETTE LIGNE - Connecter le socket
+          socketService.connect(token, parsedUser.id || parsedUser.sub);
+        }
       }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    console.error('Auth check failed:', error);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const login = async (email, password) => {
     try {
       setIsLoading(true);
       setError(null);
       const response = await authService.login({ email, password });
+      
       setUser(response.user);
+      
+      // 🔥 AJOUTE CETTE LIGNE - Connecter le socket après login
+      const token = await AsyncStorage.getItem('auth_token');
+      if (token && response.user) {
+        socketService.connect(token, response.user.id || response.user.sub);
+      }
+      
       return response;
     } catch (err) {
       setError(err.message);
@@ -58,7 +70,15 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
       const response = await authService.register({ email, password, name });
+      
       setUser(response.user);
+      
+      //  Connecter le socket après inscription
+      const token = await AsyncStorage.getItem('auth_token');
+      if (token && response.user) {
+        socketService.connect(token, response.user.id || response.user.sub);
+      }
+      
       return response;
     } catch (err) {
       setError(err.message);
@@ -71,6 +91,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       setIsLoading(true);
+      
+      //  - Déconnecter le socket
+      socketService.disconnect();
+      
       await authService.logout();
       setUser(null);
     } catch (error) {
