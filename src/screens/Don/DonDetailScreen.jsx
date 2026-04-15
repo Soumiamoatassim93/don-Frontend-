@@ -1,143 +1,55 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  Image, Dimensions, TouchableOpacity, Alert,
+  View, Text, ScrollView, Image,
+  Dimensions, TouchableOpacity,
 } from 'react-native';
-import { API_URL } from '../../../config';
-import { authService } from '../../services/auth.service';
-import { styles } from './styles/DonDetail';
-const { width } = Dimensions.get('window');
+import { API_URL }        from '../../../config';
+import { useDonDetail }   from '../../hooks/useDonDetail';
+import { styles }         from './styles/DonDetail';
 
+const { width } = Dimensions.get('window');
 const colors = {
-  primary: '#6366f1',
-  text: '#111827',
-  textLight: '#6b7280',
-  background: '#f9fafb',
-  card: '#ffffff',
-  available: '#10b981',
-  favColor: '#e11d48',
-  reqColor: '#6d28d9',
+  primary: '#6366f1', text: '#111827', textLight: '#6b7280',
+  background: '#f9fafb', card: '#ffffff',
+  available: '#10b981', favColor: '#e11d48', reqColor: '#6d28d9',
 };
 
-// Fonction corrigée pour obtenir l'URL de l'image
 const getImageUri = (img) => {
   if (!img) return null;
-  
-  // Si c'est une chaîne de caractères
   if (typeof img === 'string') {
     if (img.startsWith('http')) return img;
-    // Supprimer le préfixe /uploads/ s'il existe déjà
-    const cleanPath = img.replace(/^\/?uploads\//, '');
-    return `${API_URL}/uploads/${cleanPath}`;
+    return `${API_URL}/uploads/${img.replace(/^\/?uploads\//, '')}`;
   }
-  
-  // Si c'est un objet avec une propriété url
   if (img.url) {
     if (img.url.startsWith('http')) return img.url;
-    // Supprimer le préfixe /uploads/ s'il existe déjà
-    const cleanPath = img.url.replace(/^\/?uploads\//, '');
-    return `${API_URL}/uploads/${cleanPath}`;
+    return `${API_URL}/uploads/${img.url.replace(/^\/?uploads\//, '')}`;
   }
-  
-  // Si c'est un objet avec filename ou path
-  if (img.filename) {
-    return `${API_URL}/uploads/${img.filename}`;
-  }
-  if (img.path) {
-    return `${API_URL}/uploads/${img.path}`;
-  }
-  
+  if (img.filename) return `${API_URL}/uploads/${img.filename}`;
+  if (img.path)     return `${API_URL}/uploads/${img.path}`;
   return null;
 };
 
 const DonDetailScreen = ({ route, navigation }) => {
-  const { don } = route.params;
-  const images = Array.isArray(don.images) ? don.images : [];
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [requestSent, setRequestSent] = useState(false);
-  const [loadingRequest, setLoadingRequest] = useState(false);
-  const [imageErrors, setImageErrors] = useState({});
+  const { don }                           = route.params;
+  const images                            = Array.isArray(don.images) ? don.images : [];
+  const [activeIndex, setActiveIndex]     = useState(0);
+  const [imageErrors, setImageErrors]     = useState({});
 
-  // Vérifier si le don est déjà en favori au chargement
-  useEffect(() => {
-    const checkFavorite = async () => {
-      try {
-        const user = await authService.getCurrentUser();
-        const response = await authService.api.get(`/favorites/check?userId=${user.id}&donId=${don.id}`);
-        setIsFavorite(response.data.isFavorite);
-      } catch (err) {
-        console.log('Erreur vérification favori:', err);
-      }
-    };
-    checkFavorite();
-  }, [don.id]);
-
-  const handleFavorite = useCallback(async () => {
-    try {
-      const user = await authService.getCurrentUser();
-      
-      if (isFavorite) {
-        // Supprimer des favoris
-        await authService.api.delete(`/favorites/${user.id}/${don.id}`);
-        setIsFavorite(false);
-        Alert.alert('Succès', 'Retiré des favoris');
-      } else {
-        // Ajouter aux favoris
-        await authService.api.post('/favorites', {
-          userId: user.id,
-          donId: don.id,
-        });
-        setIsFavorite(true);
-        Alert.alert('Succès', 'Ajouté aux favoris');
-      }
-    } catch (err) {
-      console.log('❌ favorite error:', err.response?.data || err.message);
-      Alert.alert('Erreur', 'Impossible de modifier les favoris');
-    }
-  }, [isFavorite, don.id]);
-
-  const handleRequest = useCallback(async () => {
-    if (requestSent || loadingRequest) return;
-    
-    setLoadingRequest(true);
-    try {
-      const user = await authService.getCurrentUser();
-      
-      await authService.api.post('/requests', {
-        userId: user.id,
-        donationId: don.id,
-        status: 'pending',
-      });
-      
-      setRequestSent(true);
-      Alert.alert('Succès', 'Demande envoyée ✔️');
-    } catch (err) {
-      console.log('❌ request error:', err.response?.data || err.message);
-      Alert.alert('Erreur', 'Impossible d’envoyer la demande');
-    } finally {
-      setLoadingRequest(false);
-    }
-  }, [don.id, requestSent, loadingRequest]);
-
-  const handleImageError = (index) => {
-    setImageErrors(prev => ({ ...prev, [index]: true }));
-  };
+  const {
+    isFavorite, requestSent, sendLoading,
+    handleFavorite, handleRequest,
+  } = useDonDetail(don);
 
   return (
     <View style={styles.wrapper}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
 
-        {/* Images */}
         {images.length > 0 ? (
           <View>
             <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
+              horizontal pagingEnabled showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(e) => {
-                const index = Math.round(e.nativeEvent.contentOffset.x / width);
-                setActiveIndex(index);
+                setActiveIndex(Math.round(e.nativeEvent.contentOffset.x / width));
               }}
             >
               {images.map((img, index) => {
@@ -150,15 +62,11 @@ const DonDetailScreen = ({ route, navigation }) => {
                     </View>
                   );
                 }
-                
                 return (
                   <Image
-                    key={index}
-                    source={{ uri: imageUri }}
-                    style={styles.fullImage}
-                    resizeMode="cover"
-                    onError={() => handleImageError(index)}
-                    onLoad={() => console.log(`Image ${index} chargée: ${imageUri}`)}
+                    key={index} source={{ uri: imageUri }}
+                    style={styles.fullImage} resizeMode="cover"
+                    onError={() => setImageErrors((p) => ({ ...p, [index]: true }))}
                   />
                 );
               })}
@@ -178,7 +86,6 @@ const DonDetailScreen = ({ route, navigation }) => {
         )}
 
         <View style={styles.content}>
-          {/* Titre + badge + favori */}
           <View style={styles.titleRow}>
             <Text style={styles.title}>{don.title}</Text>
             <View style={styles.titleRight}>
@@ -191,15 +98,12 @@ const DonDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          {/* Adresse */}
-          {don.address ? (
+          {don.address && (
             <View style={styles.row}>
               <Text style={styles.rowIcon}>📍</Text>
               <Text style={styles.rowText}>{don.address}</Text>
             </View>
-          ) : null}
-
-          {/* Date */}
+          )}
           <View style={styles.row}>
             <Text style={styles.rowIcon}>📅</Text>
             <Text style={styles.rowText}>
@@ -208,21 +112,17 @@ const DonDetailScreen = ({ route, navigation }) => {
               })}
             </Text>
           </View>
-
-          {/* Catégorie si disponible */}
-          {don.category ? (
+          {don.category && (
             <View style={styles.row}>
               <Text style={styles.rowIcon}>🏷️</Text>
               <Text style={styles.rowText}>{don.category}</Text>
             </View>
-          ) : null}
+          )}
 
           <View style={styles.divider} />
-
           <Text style={styles.sectionTitle}>Description</Text>
           <Text style={styles.description}>{don.description || 'Aucune description fournie'}</Text>
 
-          {/* Donateur */}
           {don.user && (
             <>
               <View style={styles.divider} />
@@ -243,7 +143,6 @@ const DonDetailScreen = ({ route, navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Barre d'actions fixe en bas */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={[styles.bottomBtn, styles.msgBtn]}
@@ -254,16 +153,15 @@ const DonDetailScreen = ({ route, navigation }) => {
 
         <TouchableOpacity
           style={[
-            styles.bottomBtn,
-            styles.reqBtn,
+            styles.bottomBtn, styles.reqBtn,
             requestSent && styles.reqBtnSent,
-            loadingRequest && styles.reqBtnLoading,
+            sendLoading && styles.reqBtnLoading,
           ]}
           onPress={handleRequest}
-          disabled={requestSent || loadingRequest}
+          disabled={requestSent || sendLoading}
         >
           <Text style={styles.bottomBtnText}>
-            {loadingRequest ? '⏳ Envoi...' : requestSent ? '✅ Demande envoyée' : '📨 Demander'}
+            {sendLoading ? '⏳ Envoi...' : requestSent ? '✅ Demande envoyée' : '📨 Demander'}
           </Text>
         </TouchableOpacity>
       </View>

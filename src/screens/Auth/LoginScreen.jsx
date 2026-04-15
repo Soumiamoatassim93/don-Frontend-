@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   View,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -10,33 +9,34 @@ import {
 } from 'react-native';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { useFormValidation } from '../../hooks/useFormValidation';
-import {styles} from './styles/LoginScreen.styles';
-const colors = {
-  text: '#111827',
-  textLight: '#6b7280',
-  primary: '#6366f1',
-};
+import { styles } from './styles/LoginScreen.styles';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, error, clearError } = useAuth();
   const { errors, validateLoginForm, setErrors } = useFormValidation();
 
   const handleLogin = async () => {
     if (validateLoginForm(email, password)) {
       try {
         await login(email, password);
+        // ✅ SUPPRIMEZ cette ligne - la navigation se fait automatiquement
+        // navigation.replace('Home');
       } catch (error) {
-        Alert.alert('Erreur', error.message);
+        // L'erreur est déjà dans le state Redux
+        if (error) {
+          Alert.alert('Erreur', error);
+        }
       }
     }
   };
 
   const handleNavigateToRegister = () => {
     navigation.navigate('Register');
+    clearError();
   };
 
   return (
@@ -57,6 +57,7 @@ const LoginScreen = ({ navigation }) => {
             onChangeText={(text) => {
               setEmail(text);
               setErrors({});
+              clearError();
             }}
             placeholder="exemple@email.com"
             keyboardType="email-address"
@@ -70,11 +71,14 @@ const LoginScreen = ({ navigation }) => {
             onChangeText={(text) => {
               setPassword(text);
               setErrors({});
+              clearError();
             }}
             placeholder="••••••"
             secureTextEntry
             error={errors.password}
           />
+
+          {error && <Text style={styles.errorText}>{error}</Text>}
 
           <Button
             title="Se connecter"
@@ -94,7 +98,5 @@ const LoginScreen = ({ navigation }) => {
     </KeyboardAvoidingView>
   );
 };
-
-
 
 export default LoginScreen;
