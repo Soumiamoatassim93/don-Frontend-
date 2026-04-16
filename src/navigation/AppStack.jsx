@@ -15,6 +15,7 @@ import FavorisScreen from '../screens/Favoris/FavorisScreen';
 import RequestsScreen from '../screens/RequestScreen/RequestsScreen';
 import TrackingScreen from '../screens/TrakingScreen/TrackingScreen';
 import SenderTrackingScreen from '../screens/SenderTracking/SenderTrackingScreen';
+import notificationScreen from '../screens/notification/notificationScreen';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -47,6 +48,9 @@ const HomeStack = () => (
     <Stack.Screen name="Chat" component={MessagerieScreen} options={{ title: 'Chat' }} />
     <Stack.Screen name="Favoris" component={FavorisScreen} options={{ title: 'Mes Favoris' }} />
     <Stack.Screen name="Requests" component={RequestsScreen} options={{ title: 'Demandes' }} />
+    <Stack.Screen name="Notifications" component={notificationScreen} options={{ headerShown: false }} />
+
+    
   </Stack.Navigator>
 );
 
@@ -63,6 +67,7 @@ const AppStack = () => (
 <Drawer.Screen name="Requests"  component={RequestsScreen} options={{ title: 'Demandes'      }} />
 <Drawer.Screen name="Tracking" component={TrackingScreen} options={{ headerShown: false }} />
 <Drawer.Screen name="SenderTracking" component={SenderTrackingScreen} options={{ headerShown: false }} />
+<Drawer.Screen name="Notifications" component={notificationScreen} options={{ headerShown: false }} />
   </Drawer.Navigator>
 );
 

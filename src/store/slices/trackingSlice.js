@@ -30,6 +30,43 @@ export const getDonationLocation = createAsyncThunk(
   }
 );
 
+// ✅ AJOUT : Récupérer la position du sender (demandeur)
+export const getSenderLocation = createAsyncThunk(
+  'tracking/getSenderLocation',
+  async (senderId, { rejectWithValue }) => {
+    try {
+      console.log('🔍 Récupération position du sender ID:', senderId);
+      
+      // Essayer d'abord via WebSocket si disponible
+      const wsLocation = await LocationService.getUserLastLocation?.(senderId);
+      if (wsLocation) {
+        console.log('✅ Position sender récupérée via WebSocket');
+        return {
+          latitude: wsLocation.latitude,
+          longitude: wsLocation.longitude,
+          timestamp: wsLocation.createdAt || new Date().toISOString()
+        };
+      }
+      
+      // Fallback: API REST
+      const response = await authService.api.get(`/tracking/users/${senderId}/last-location`);
+      
+      if (response.data && response.data.lastLocation) {
+        console.log('✅ Position sender récupérée via API:', response.data.lastLocation);
+        return {
+          latitude: response.data.lastLocation.latitude,
+          longitude: response.data.lastLocation.longitude,
+          timestamp: response.data.lastLocation.timestamp
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error('❌ Erreur getSenderLocation:', err.response?.data || err.message);
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  }
+);
+
 // Démarrer le tracking de position
 export const startTracking = createAsyncThunk(
   'tracking/startTracking',
@@ -114,6 +151,7 @@ const trackingSlice = createSlice({
     // Positions
     donationLocation: null,     // Position du don { latitude, longitude, address }
     currentLocation: null,      // Position actuelle de l'utilisateur
+    senderLocation: null,       // ✅ AJOUT : Position du sender (demandeur)
     
     // État du tracking
     isLocationActive: false,    // Le tracking est-il actif ?
@@ -140,10 +178,16 @@ const trackingSlice = createSlice({
       state.currentLocation = action.payload;
     },
     
+    // ✅ AJOUT : Mettre à jour la position du sender
+    updateSenderLocation: (state, action) => {
+      state.senderLocation = action.payload;
+    },
+    
     // Réinitialiser tout l'état
     resetTracking: (state) => {
       state.donationLocation = null;
       state.currentLocation = null;
+      state.senderLocation = null;      // ✅ AJOUT
       state.isLocationActive = false;
       state.error = null;
       state.trackingUserId = null;
@@ -168,6 +212,21 @@ const trackingSlice = createSlice({
         state.donationLocation = action.payload;
       })
       .addCase(getDonationLocation.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      });
+
+    // ── getSenderLocation ─────────────────────────── ✅ AJOUT
+    builder
+      .addCase(getSenderLocation.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(getSenderLocation.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.senderLocation = action.payload;
+      })
+      .addCase(getSenderLocation.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       });
@@ -237,6 +296,7 @@ export const {
   clearError,
   setLocationActive,
   updateCurrentLocation,
+  updateSenderLocation,  // ✅ AJOUT
   resetTracking,
   setSocketConnected,
 } = trackingSlice.actions;

@@ -1,13 +1,15 @@
 // screens/HomeScreen/HomeScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, Image, TouchableOpacity,
   ActivityIndicator, RefreshControl, ScrollView, TextInput,
 } from 'react-native';
-import { useAuth } from '../../hooks/useAuth'; // ← CHANGÉ: utiliser Redux
+import { useDispatch, useSelector } from 'react-redux';
+import { useAuth } from '../../hooks/useAuth';
 import { useHome } from '../../hooks/useHome';
 import { API_URL } from '../../../config';
 import { styles } from './HomeStyle.styles';
+import { fetchNotifications } from '../../store/slices/notificationSlice';
 
 const colors = {
   text: '#111827', textLight: '#6b7280',
@@ -77,9 +79,13 @@ const DonCard = ({ don, onPress, onFavorite, onRequest, isFavorite }) => {
 };
 
 const HomeScreen = ({ navigation }) => {
-  const { user } = useAuth(); // ← CHANGÉ: utilise Redux
+  const dispatch = useDispatch();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Tous');
+  
+  // Récupérer le compteur de notifications non lues depuis Redux
+  const { unreadCount } = useSelector((state) => state.notifications);
 
   const {
     filteredDons, categories,
@@ -87,6 +93,26 @@ const HomeScreen = ({ navigation }) => {
     favoriteIds, handleFavorite, handleRequest,
     refresh, refreshing,
   } = useHome(user, search, activeCategory);
+
+  // Charger les notifications au montage de l'écran
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (user?.id) {
+        dispatch(fetchNotifications(user.id));
+      }
+    };
+    loadNotifications();
+  }, [user?.id, dispatch]);
+
+  // Rafraîchir les notifications quand l'écran est focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (user?.id) {
+        dispatch(fetchNotifications(user.id));
+      }
+    });
+    return unsubscribe;
+  }, [navigation, user?.id, dispatch]);
 
   const initiale = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
 
@@ -115,13 +141,32 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.greeting}>Bonjour 👋 {initiale}</Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('MessagerieDrawer')}
-            style={styles.msgBtn}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.msgIcon}>💬</Text>
-          </TouchableOpacity>
+          <View style={styles.headerIcons}>
+            {/* Bouton Chat existant - GARDÉ */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('MessagerieDrawer')}
+              style={styles.msgBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.msgIcon}>💬</Text>
+            </TouchableOpacity>
+
+            {/* Bouton Notifications - AJOUTÉ */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Notifications')}
+              style={styles.msgBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.msgIcon}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.subtitle}>{filteredDons.length} don(s) disponible(s)</Text>

@@ -67,4 +67,68 @@ export const styles = StyleSheet.create({
   },
   disabledBtn: { backgroundColor: '#9ca3af' },
   navigateBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  // Dans TrackingScreen.styles.js
+directionsBtn: {
+  backgroundColor: '#f59e0b',
+  paddingVertical: 12,
+  borderRadius: 12,
+  alignItems: 'center',
+  marginTop: 8,
+},
+directionsBtnText: {
+  color: '#fff',
+  fontWeight: '600',
+  fontSize: 14,
+},
+mapPlaceholder: {
+  width: '100%',
+  height: 250,
+  backgroundColor: '#f3f4f6',
+  borderRadius: 12,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+mapPlaceholderIcon: {
+  fontSize: 48,
+  marginBottom: 12,
+},
+mapPlaceholderText: {
+  fontSize: 14,
+  color: '#6b7280',
+  marginBottom: 12,
+},
+retryMapBtn: {
+  backgroundColor: '#6366f1',
+  paddingHorizontal: 20,
+  paddingVertical: 8,
+  borderRadius: 8,
+},
+retryMapBtnText: {
+  color: '#fff',
+  fontSize: 14,
+  fontWeight: '600',
+},
+mapPlaceholder: {
+  backgroundColor: '#f3f4f6',
+  borderRadius: 12,
+  padding: 20,
+  alignItems: 'center',
+  margin: 16,
+},
+mapPlaceholderIcon: {
+  fontSize: 48,
+  marginBottom: 12,
+},
+coordinatesText: {
+  fontSize: 12,
+  color: '#374151',
+  marginVertical: 2,
+  fontFamily: 'monospace',
+},
+mapPlaceholderText: {
+  fontSize: 12,
+  color: '#6b7280',
+  textAlign: 'center',
+  marginTop: 8,
+},
 });

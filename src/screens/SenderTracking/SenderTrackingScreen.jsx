@@ -10,10 +10,10 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
 import { useAuth } from '../../hooks/useAuth';
 import { useTracking } from '../../hooks/useTracking';
 import { styles } from './SenderTracking';
+import { openOpenStreetMap } from '../../utils/openStreetMap';
 
 const SenderTrackingScreen = ({ route, navigation }) => {
   const { request: requestData, donation } = route.params;
@@ -34,8 +34,8 @@ const SenderTrackingScreen = ({ route, navigation }) => {
 
   // Utiliser directement les coordonnées du don depuis les paramètres
   const donationLocation = donation?.latitude && donation?.longitude ? {
-    latitude: parseFloat(donation.latitude),
-    longitude: parseFloat(donation.longitude),
+    latitude: typeof donation.latitude === 'string' ? parseFloat(donation.latitude) : donation.latitude,
+    longitude: typeof donation.longitude === 'string' ? parseFloat(donation.longitude) : donation.longitude,
   } : null;
 
   // Nettoyer le tracking à la fermeture
@@ -68,12 +68,19 @@ const SenderTrackingScreen = ({ route, navigation }) => {
     }
   };
 
-  const openGoogleMaps = () => {
+  const handleOpenDonationLocation = () => {
     if (donationLocation) {
-      const url = `https://www.google.com/maps/search/?api=1&query=${donationLocation.latitude},${donationLocation.longitude}`;
-      Linking.openURL(url);
+      openOpenStreetMap(donationLocation.latitude, donationLocation.longitude, donation?.title);
     } else {
       Alert.alert('Erreur', 'Position du don non disponible');
+    }
+  };
+
+  const handleOpenMyLocation = () => {
+    if (currentLocation) {
+      openOpenStreetMap(currentLocation.latitude, currentLocation.longitude, 'Ma position');
+    } else {
+      Alert.alert('Erreur', 'Votre position n\'est pas disponible');
     }
   };
 
@@ -84,13 +91,6 @@ const SenderTrackingScreen = ({ route, navigation }) => {
       </View>
     );
   }
-
-  const initialRegion = {
-    latitude: donationLocation?.latitude || 33.5731,
-    longitude: donationLocation?.longitude || -7.5898,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -116,26 +116,54 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           </View>
         </View>
 
+        {/* Carte simplifiée (placeholder) */}
         <View style={styles.mapContainer}>
           <Text style={styles.sectionTitle}>📍 Position du don</Text>
-          <MapView style={styles.map} initialRegion={initialRegion}>
+          
+          <View style={styles.mapPlaceholder}>
+            <Text style={styles.mapPlaceholderIcon}>🗺️</Text>
+            
             {donationLocation && (
-              <Marker
-                coordinate={donationLocation}
-                title={donation?.title}
-                description="Position du don"
-                pinColor="#ef4444"
-              />
+              <Text style={styles.coordinatesText}>
+                📍 Don: {donationLocation.latitude.toFixed(6)}, {donationLocation.longitude.toFixed(6)}
+              </Text>
             )}
+            
             {currentLocation && isLocationActive && (
-              <Marker
-                coordinate={currentLocation}
-                title="Ma position"
-                description="Votre position actuelle"
-                pinColor="#10b981"
-              />
+              <Text style={styles.coordinatesText}>
+                📍 Vous: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
+              </Text>
             )}
-          </MapView>
+            
+            <Text style={styles.mapPlaceholderText}>
+              Cliquez sur un bouton ci-dessous pour voir sur OpenStreetMap
+            </Text>
+          </View>
+        </View>
+
+        {/* Boutons carte */}
+        <View style={styles.mapButtonsContainer}>
+          {donationLocation && (
+            <TouchableOpacity 
+              style={styles.donationMapBtn} 
+              onPress={handleOpenDonationLocation}
+            >
+              <Text style={styles.donationMapBtnText}>
+                📍 Voir la position du don sur la carte
+              </Text>
+            </TouchableOpacity>
+          )}
+          
+          {currentLocation && isLocationActive && (
+            <TouchableOpacity 
+              style={styles.myLocationMapBtn} 
+              onPress={handleOpenMyLocation}
+            >
+              <Text style={styles.myLocationMapBtnText}>
+                📍 Voir ma position sur la carte
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.activationCard}>
@@ -174,10 +202,6 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           {donation?.address && (
             <Text style={styles.donAddress}>📍 {donation.address}</Text>
           )}
-          
-          <TouchableOpacity style={styles.navigateBtn} onPress={openGoogleMaps}>
-            <Text style={styles.navigateBtnText}>🗺️ Ouvrir la navigation</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.instructionsCard}>

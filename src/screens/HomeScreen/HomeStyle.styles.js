@@ -263,4 +263,52 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold', 
     lineHeight: 28 
   },
+
+// screens/HomeScreen/HomeStyle.styles.js
+// Ajoutez ces styles à votre fichier existant
+
+badge: {
+  position: 'absolute',
+  top: -5,
+  right: -8,
+  backgroundColor: '#ef4444',
+  borderRadius: 10,
+  minWidth: 18,
+  height: 18,
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 4,
+},
+badgeText: {
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
+// screens/HomeScreen/HomeStyle.styles.js
+// Ajoutez ces styles à votre fichier existant
+
+headerIcons: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+},
+
+notifBadge: {
+  position: 'absolute',
+  top: -5,
+  right: -8,
+  backgroundColor: '#ef4444',
+  borderRadius: 10,
+  minWidth: 18,
+  height: 18,
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 4,
+},
+
+notifBadgeText: {
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
 });
