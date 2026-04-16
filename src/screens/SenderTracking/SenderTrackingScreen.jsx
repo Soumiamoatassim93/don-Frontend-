@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Linking,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -83,6 +82,32 @@ const SenderTrackingScreen = ({ route, navigation }) => {
       Alert.alert('Erreur', 'Votre position n\'est pas disponible');
     }
   };
+
+ 
+const navigateToChat = () => {
+  // Vérifier que nous avons les données nécessaires
+  if (!donation?.userId) {
+    Alert.alert('Erreur', 'Impossible de contacter le propriétaire');
+    return;
+  }
+
+  console.log('Navigation vers Chat avec:', {
+    recipient: donation.userId,
+    don: donation.id
+  });
+
+  // Navigation directe vers l'écran Chat dans HomeStack
+  navigation.navigate('Chat', {
+    recipient: {
+      id: donation.userId,
+      name: 'Propriétaire',
+    },
+    don: {
+      id: donation.id,
+      title: donation.title,
+    },
+  });
+};
 
   if (isLoading) {
     return (
@@ -213,14 +238,10 @@ const SenderTrackingScreen = ({ route, navigation }) => {
           </Text>
         </View>
 
+        {/* Bouton Contacter le propriétaire - VERSION CORRIGÉE */}
         <TouchableOpacity 
           style={styles.messageBtn}
-          onPress={() => {
-            navigation.navigate('Messagerie', {
-              receiverId: donation?.userId,
-              receiverName: 'Propriétaire',
-            });
-          }}
+          onPress={navigateToChat}
         >
           <Text style={styles.messageBtnText}>💬 Contacter le propriétaire</Text>
         </TouchableOpacity>
