@@ -6,6 +6,7 @@ import categoriesReducer from './slices/categoriesSlice';
 import authReducer from './slices/authSlice';
 import trackingReducer from './slices/trackingSlice';
 import notificationReducer from './slices/notificationSlice';
+import messageReducer from './slices/messageSlice';
 export const store = configureStore({
   reducer: {
     dons:       donsReducer,
@@ -15,6 +16,7 @@ export const store = configureStore({
     auth: authReducer,
     tracking: trackingReducer,
     notifications: notificationReducer,
+    messages: messageReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
