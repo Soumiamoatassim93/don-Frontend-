@@ -10,7 +10,7 @@ const colors = {
 };
 export const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1 },
+  container: { flex: 1, },
   fullImage: { width, height: 280 },
   imageErrorContainer: { 
     width, 

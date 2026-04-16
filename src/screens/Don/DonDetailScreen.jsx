@@ -1,6 +1,8 @@
+// screens/DonDetailScreen.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, Image, Dimensions, TouchableOpacity, Alert, ActivityIndicator
+  View, Text, StyleSheet, ScrollView,
+  Image, Dimensions, TouchableOpacity, Alert,
 } from 'react-native';
 import { API_URL } from '../../../config';
 import { authService } from '../../services/auth.service';
@@ -9,14 +11,9 @@ import { styles } from './styles/DonDetail';
 const { width } = Dimensions.get('window');
 
 const colors = {
-  primary: '#6366f1',
-  text: '#111827',
-  textLight: '#6b7280',
-  background: '#f9fafb',
-  card: '#ffffff',
-  available: '#10b981',
-  favColor: '#e11d48',
-  reqColor: '#6d28d9',
+  primary: '#6366f1', text: '#111827', textLight: '#6b7280',
+  background: '#f9fafb', card: '#ffffff',
+  available: '#10b981', favColor: '#e11d48', reqColor: '#6d28d9',
 };
 
 const getImageUri = (img) => {
@@ -37,48 +34,15 @@ const getImageUri = (img) => {
 };
 
 const DonDetailScreen = ({ route, navigation }) => {
-  const { don } = route.params;
-  const [donDetails, setDonDetails] = useState(don);
-  const [donateur, setDonateur] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [imageErrors, setImageErrors] = useState({});
+  const { don } = route.params;  // don contient toutes les infos du don
+  const images = Array.isArray(don.images) ? don.images : [];
   const [activeIndex, setActiveIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [loadingRequest, setLoadingRequest] = useState(false);
+  const [imageErrors, setImageErrors] = useState({});
 
-  const images = Array.isArray(donDetails.images) ? donDetails.images : [];
-
-  // 🔥 Charger les détails du don ET le donateur
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // 1. Charger les détails complets du don
-        const donResponse = await authService.api.get(`/dons/${don.id}`);
-        const donData = donResponse.data;
-        setDonDetails(donData);
-        
-        // 2. Charger les infos du donateur (user)
-        if (donData.userId) {
-          try {
-            const userResponse = await authService.api.get(`/users/${donData.userId}`);
-            setDonateur(userResponse.data);
-            console.log('👤 Donateur chargé:', userResponse.data);
-          } catch (userErr) {
-            console.log('Erreur chargement donateur:', userErr);
-          }
-        }
-      } catch (error) {
-        console.error('Erreur chargement:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadData();
-  }, [don.id]);
-
-  // Vérifier les favoris
+  // Vérifier si le don est déjà en favori
   useEffect(() => {
     const checkFavorite = async () => {
       try {
@@ -100,11 +64,15 @@ const DonDetailScreen = ({ route, navigation }) => {
         setIsFavorite(false);
         Alert.alert('Succès', 'Retiré des favoris');
       } else {
-        await authService.api.post('/favorites', { userId: user.id, donId: don.id });
+        await authService.api.post('/favorites', {
+          userId: user.id,
+          donId: don.id,
+        });
         setIsFavorite(true);
         Alert.alert('Succès', 'Ajouté aux favoris');
       }
     } catch (err) {
+      console.log('❌ favorite error:', err.response?.data || err.message);
       Alert.alert('Erreur', 'Impossible de modifier les favoris');
     }
   }, [isFavorite, don.id]);
@@ -122,6 +90,7 @@ const DonDetailScreen = ({ route, navigation }) => {
       setRequestSent(true);
       Alert.alert('Succès', 'Demande envoyée ✔️');
     } catch (err) {
+      console.log('❌ request error:', err.response?.data || err.message);
       Alert.alert('Erreur', 'Impossible d’envoyer la demande');
     } finally {
       setLoadingRequest(false);
@@ -132,14 +101,8 @@ const DonDetailScreen = ({ route, navigation }) => {
     setImageErrors(prev => ({ ...prev, [index]: true }));
   };
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ marginTop: 10 }}>Chargement...</Text>
-      </View>
-    );
-  }
+  // Infos du donateur
+  const donor = don.user || {};
 
   return (
     <View style={styles.wrapper}>
@@ -152,8 +115,7 @@ const DonDetailScreen = ({ route, navigation }) => {
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(e) => {
-                const index = Math.round(e.nativeEvent.contentOffset.x / width);
-                setActiveIndex(index);
+                setActiveIndex(Math.round(e.nativeEvent.contentOffset.x / width));
               }}
             >
               {images.map((img, index) => {
@@ -193,10 +155,10 @@ const DonDetailScreen = ({ route, navigation }) => {
 
         <View style={styles.content}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{donDetails.title}</Text>
+            <Text style={styles.title}>{don.title}</Text>
             <View style={styles.titleRight}>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{donDetails.status || 'Disponible'}</Text>
+                <Text style={styles.badgeText}>{don.status || 'Disponible'}</Text>
               </View>
               <TouchableOpacity style={styles.favIconBtn} onPress={handleFavorite}>
                 <Text style={styles.favIcon}>{isFavorite ? '❤️' : '🤍'}</Text>
@@ -204,48 +166,50 @@ const DonDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          {donDetails.address ? (
+          {/* Adresse */}
+          {don.address ? (
             <View style={styles.row}>
               <Text style={styles.rowIcon}>📍</Text>
-              <Text style={styles.rowText}>{donDetails.address}</Text>
+              <Text style={styles.rowText}>{don.address}</Text>
             </View>
           ) : null}
 
+          {/* Date */}
           <View style={styles.row}>
             <Text style={styles.rowIcon}>📅</Text>
             <Text style={styles.rowText}>
-              {new Date(donDetails.createdAt).toLocaleDateString('fr-FR', {
+              {new Date(don.createdAt).toLocaleDateString('fr-FR', {
                 day: 'numeric', month: 'long', year: 'numeric',
               })}
             </Text>
           </View>
 
-          {donDetails.category ? (
+          {/* Catégorie */}
+          {don.category ? (
             <View style={styles.row}>
               <Text style={styles.rowIcon}>🏷️</Text>
-              <Text style={styles.rowText}>{donDetails.category}</Text>
+              <Text style={styles.rowText}>{don.category}</Text>
             </View>
           ) : null}
 
           <View style={styles.divider} />
-
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{donDetails.description || 'Aucune description fournie'}</Text>
+          <Text style={styles.description}>{don.description || 'Aucune description fournie'}</Text>
 
-          {/* 🔥 SECTION DONATEUR - MAINTENANT AVEC LES DONNÉES CHARGÉES */}
-          {donateur && (
+          {/* Donateur */}
+          {donor.id && (
             <>
               <View style={styles.divider} />
               <Text style={styles.sectionTitle}>Donateur</Text>
               <View style={styles.donateurRow}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
-                    {donateur.name?.[0]?.toUpperCase() || donateur.email?.[0]?.toUpperCase() || '?'}
+                    {(donor.name?.[0] || donor.email?.[0] || '?').toUpperCase()}
                   </Text>
                 </View>
                 <View>
-                  <Text style={styles.donateurName}>{donateur.name || 'Anonyme'}</Text>
-                  <Text style={styles.donateurEmail}>{donateur.email}</Text>
+                  <Text style={styles.donateurName}>{donor.name || 'Anonyme'}</Text>
+                  <Text style={styles.donateurEmail}>{donor.email}</Text>
                 </View>
               </View>
             </>
@@ -253,52 +217,34 @@ const DonDetailScreen = ({ route, navigation }) => {
         </View>
       </ScrollView>
 
-     {/* Barre d'actions fixe en bas */}
-<View style={styles.bottomBar}>
-  <TouchableOpacity
-    style={[styles.bottomBtn, styles.msgBtn]}
-    onPress={() => {
-      // Utilisation directe de l'userId
-      const recipientId = donDetails.userId;
-      
-      console.log('📤 Contacter - userId:', recipientId);
-      
-      if (!recipientId) {
-        Alert.alert('Erreur', 'Donateur non trouvé');
-        return;
-      }
-      
-      navigation.navigate('MessagerieDrawer', {
-        screen: 'ChatRoom',
-        params: {
-          recipient: {
-            id: recipientId,
-            name: `Donateur #${recipientId}`,
-            email: `donateur${recipientId}@email.com`
-          }
-        }
-      });
-    }}
-  >
-    <Text style={[styles.bottomBtnText, { color: colors.reqColor }]}>💬 Contacter</Text>
-  </TouchableOpacity>
+      {/* Barre d'actions fixe en bas */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={[styles.bottomBtn, styles.msgBtn]}
+          onPress={() => {
+            // Navigue vers l'écran de messagerie avec les infos du donateur
+            navigation.navigate('ChatRoom', { recipient: donor });
+          }}
+        >
+          <Text style={[styles.bottomBtnText, { color: colors.reqColor }]}>💬 Contacter</Text>
+        </TouchableOpacity>
 
-  <TouchableOpacity
-    style={[
-      styles.bottomBtn,
-      styles.reqBtn,
-      requestSent && styles.reqBtnSent,
-      loadingRequest && styles.reqBtnLoading,
-    ]}
-    onPress={handleRequest}
-    disabled={requestSent || loadingRequest}
-  >
-    <Text style={styles.bottomBtnText}>
-      {loadingRequest ? '⏳ Envoi...' : requestSent ? '✅ Demande envoyée' : '📨 Demander'}
-    </Text>
-  </TouchableOpacity>
-</View>
-</View>
+        <TouchableOpacity
+          style={[
+            styles.bottomBtn,
+            styles.reqBtn,
+            requestSent && styles.reqBtnSent,
+            loadingRequest && styles.reqBtnLoading,
+          ]}
+          onPress={handleRequest}
+          disabled={requestSent || loadingRequest}
+        >
+          <Text style={styles.bottomBtnText}>
+            {loadingRequest ? '⏳ Envoi...' : requestSent ? '✅ Demande envoyée' : '📨 Demander'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
