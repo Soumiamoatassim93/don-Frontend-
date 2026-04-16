@@ -5,17 +5,24 @@ import ChatRoom from './Messaging/ChatRoom';
 
 const Stack = createNativeStackNavigator();
 
-// Stack interne pour la messagerie
 function MessagingStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ConversationsList" component={ConversationsList} />
-      <Stack.Screen name="ChatRoom" component={ChatRoom} />
+    <Stack.Navigator>
+      <Stack.Screen 
+        name="ConversationsList" 
+        component={ConversationsList} 
+        options={{ title: 'Messagerie' }}
+      />
+      <Stack.Screen 
+        name="ChatRoom" 
+        component={ChatRoom} 
+        options={{ title: 'Chat' }}
+      />
     </Stack.Navigator>
   );
 }
 
-const MessagerieScreen = ({ route, navigation }) => {
+const MessagerieScreen = () => {
   return <MessagingStack />;
 };
 

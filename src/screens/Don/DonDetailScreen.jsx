@@ -253,46 +253,52 @@ const DonDetailScreen = ({ route, navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Barre d'actions fixe en bas */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.bottomBtn, styles.msgBtn]}
-          onPress={() => {
-            if (!donateur) {
-              Alert.alert('Erreur', 'Donateur non trouvé');
-              return;
-            }
-            navigation.navigate('MessagerieDrawer', {
-              screen: 'ChatRoom',
-              params: {
-                recipient: {
-                  id: donateur.id,
-                  name: donateur.name || 'Donateur',
-                  email: donateur.email
-                }
-              }
-            });
-          }}
-        >
-          <Text style={[styles.bottomBtnText, { color: colors.reqColor }]}>💬 Contacter</Text>
-        </TouchableOpacity>
+     {/* Barre d'actions fixe en bas */}
+<View style={styles.bottomBar}>
+  <TouchableOpacity
+    style={[styles.bottomBtn, styles.msgBtn]}
+    onPress={() => {
+      // Utilisation directe de l'userId
+      const recipientId = donDetails.userId;
+      
+      console.log('📤 Contacter - userId:', recipientId);
+      
+      if (!recipientId) {
+        Alert.alert('Erreur', 'Donateur non trouvé');
+        return;
+      }
+      
+      navigation.navigate('MessagerieDrawer', {
+        screen: 'ChatRoom',
+        params: {
+          recipient: {
+            id: recipientId,
+            name: `Donateur #${recipientId}`,
+            email: `donateur${recipientId}@email.com`
+          }
+        }
+      });
+    }}
+  >
+    <Text style={[styles.bottomBtnText, { color: colors.reqColor }]}>💬 Contacter</Text>
+  </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.bottomBtn,
-            styles.reqBtn,
-            requestSent && styles.reqBtnSent,
-            loadingRequest && styles.reqBtnLoading,
-          ]}
-          onPress={handleRequest}
-          disabled={requestSent || loadingRequest}
-        >
-          <Text style={styles.bottomBtnText}>
-            {loadingRequest ? '⏳ Envoi...' : requestSent ? '✅ Demande envoyée' : '📨 Demander'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+  <TouchableOpacity
+    style={[
+      styles.bottomBtn,
+      styles.reqBtn,
+      requestSent && styles.reqBtnSent,
+      loadingRequest && styles.reqBtnLoading,
+    ]}
+    onPress={handleRequest}
+    disabled={requestSent || loadingRequest}
+  >
+    <Text style={styles.bottomBtnText}>
+      {loadingRequest ? '⏳ Envoi...' : requestSent ? '✅ Demande envoyée' : '📨 Demander'}
+    </Text>
+  </TouchableOpacity>
+</View>
+</View>
   );
 };
 
