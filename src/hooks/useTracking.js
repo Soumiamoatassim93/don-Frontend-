@@ -3,6 +3,7 @@ import { useCallback, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   getDonationLocation,
+  getSenderLocation,  // ✅ AJOUTE CET IMPORT
   startTracking,
   stopTracking,
   getTrackingStatus,
@@ -20,6 +21,7 @@ export const useTracking = () => {
   const {
     donationLocation,
     currentLocation,
+    senderLocation,  // ✅ AJOUTE CET ÉTAT
     isLocationActive,
     isLoading,
     error,
@@ -30,6 +32,11 @@ export const useTracking = () => {
   // Récupérer la position du don
   const fetchDonationLocation = useCallback((donationId) => {
     return dispatch(getDonationLocation(donationId)).unwrap();
+  }, [dispatch]);
+
+  // ✅ AJOUTE CETTE FONCTION POUR RÉCUPÉRER LA POSITION DU SENDER
+  const fetchSenderLocation = useCallback((senderId) => {
+    return dispatch(getSenderLocation(senderId)).unwrap();
   }, [dispatch]);
 
   // Actions de tracking
@@ -78,6 +85,7 @@ export const useTracking = () => {
     // États
     donationLocation,
     currentLocation,
+    senderLocation,  // ✅ AJOUTE CET ÉTAT
     isLocationActive,
     isLoading,
     error,
@@ -86,6 +94,7 @@ export const useTracking = () => {
     
     // Actions
     fetchDonationLocation,
+    fetchSenderLocation,  // ✅ AJOUTE CETTE FONCTION
     startUserTracking,
     stopUserTracking,
     checkTrackingStatus,

@@ -21,6 +21,7 @@ const menuItems = [
   { name: 'Favoris',         label: 'Mes Favoris',   icon: '❤️' },
   { name: 'Requests',        label: 'Demandes',      icon: '📨' },
   { name: 'MessagerieDrawer',label: 'Messagerie',    icon: '💬' },
+  {name: 'Notifications',   label: 'Notifications', icon: '🔔' },
   { name: 'Profile',         label: 'Mon Profil',    icon: '👤' },
 ];
 

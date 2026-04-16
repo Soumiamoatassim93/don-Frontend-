@@ -1,7 +1,5 @@
 import { StyleSheet } from "react-native";
-const colors = {
-  primary: '#6366f1',
-  text: '#111827'};
+
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9fafb' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -99,4 +97,60 @@ export const styles = StyleSheet.create({
   },
   messageBtnText: { color: '#6366f1', fontSize: 14, fontWeight: '600' },
   bottomSpacer: { height: 20 },
+  // Ajoute ces styles
+mapPlaceholder: {
+  width: '100%',
+  height: 200,
+  backgroundColor: '#f3f4f6',
+  borderRadius: 12,
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: 16,
+},
+mapPlaceholderIcon: {
+  fontSize: 48,
+  marginBottom: 12,
+},
+mapPlaceholderText: {
+  fontSize: 12,
+  color: '#6b7280',
+  textAlign: 'center',
+  marginTop: 8,
+},
+coordinatesText: {
+  fontSize: 12,
+  color: '#374151',
+  marginVertical: 2,
+  fontFamily: 'monospace',
+},
+mapButtonsContainer: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 10,
+  marginBottom: 16,
+},
+donationMapBtn: {
+  flex: 1,
+  backgroundColor: '#ef4444',
+  paddingVertical: 12,
+  borderRadius: 10,
+  alignItems: 'center',
+},
+donationMapBtnText: {
+  color: '#fff',
+  fontWeight: '600',
+  fontSize: 12,
+},
+myLocationMapBtn: {
+  flex: 1,
+  backgroundColor: '#10b981',
+  paddingVertical: 12,
+  borderRadius: 10,
+  alignItems: 'center',
+},
+myLocationMapBtnText: {
+  color: '#fff',
+  fontWeight: '600',
+  fontSize: 12,
+},
 });
