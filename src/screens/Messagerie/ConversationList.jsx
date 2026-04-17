@@ -12,13 +12,8 @@ const ConversationList = ({ navigation }) => {
   const { conversations, isLoading, getConversations } = useMessages();
   const [refreshing, setRefreshing] = useState(false);
 
-  // NE PAS appeler getConversations() ici car cela vide la liste
-  // Les conversations sont déjà dans le store (ajoutées via createConversation ou reception de messages)
-
   const onRefresh = async () => {
     setRefreshing(true);
-    // Optionnel : tu peux implémenter une vraie récupération si tu as un endpoint
-    // await getConversations(); // à éviter car retourne []
     setRefreshing(false);
   };
 
@@ -45,21 +40,23 @@ const ConversationList = ({ navigation }) => {
           const lastMsg = item.lastMessage;
           const unread = item.unreadCount > 0;
 
+          // ✅ Récupération du nom (priorité à 'nom', puis 'name', puis email)
+          const displayName = other?.nom || other?.name || other?.email || 'Utilisateur';
+          const initial = (other?.nom?.[0] || other?.name?.[0] || other?.email?.[0] || '?').toUpperCase();
+
           return (
             <TouchableOpacity
               style={styles.convItem}
               onPress={() => navigation.navigate('Chat', { conversation: item, recipient: other })}
             >
               <View style={styles.convAvatar}>
-                <Text style={styles.convAvatarText}>
-                  {other?.name?.[0]?.toUpperCase() || other?.email?.[0]?.toUpperCase() || '?'}
-                </Text>
+                <Text style={styles.convAvatarText}>{initial}</Text>
                 {unread && <View style={styles.unreadDot} />}
               </View>
               <View style={styles.convBody}>
                 <View style={styles.convTopRow}>
                   <Text style={[styles.convName, unread && styles.convNameBold]}>
-                    {other?.name || other?.email || 'Utilisateur'}
+                    {displayName}
                   </Text>
                   <Text style={styles.convTime}>
                     {lastMsg ? new Date(lastMsg.createdAt).toLocaleDateString('fr-FR') : ''}

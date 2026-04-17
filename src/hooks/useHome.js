@@ -1,3 +1,4 @@
+// hooks/useHome.js
 import { useEffect, useCallback, useMemo } from 'react';
 import { Alert } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -40,19 +41,38 @@ export const useHome = (user, search, activeCategory) => {
     }
   }, [requestError, dispatch]);
 
-  // Filtrage des dons
+  // ✅ Création d'un Map nom → id pour les catégories
+  const categoryNameToId = useMemo(() => {
+    const map = new Map();
+    categoriesList.forEach((cat) => {
+      map.set(cat.name.toLowerCase().trim(), cat.id);
+    });
+    return map;
+  }, [categoriesList]);
+
+  // ✅ Filtrage des dons avec comparaison par categoryId
   const filteredDons = useMemo(() => {
+    // Récupérer l'ID de la catégorie active (si ce n'est pas "Tous")
+    let activeCategoryId = null;
+    if (activeCategory !== 'Tous') {
+      activeCategoryId = categoryNameToId.get(activeCategory.toLowerCase().trim());
+    }
+
     return availableDons.filter((don) => {
       const isOwn = don.userId === user?.id || don.user?.id === user?.id;
       if (isOwn) return false;
+
       const matchSearch =
         don.title?.toLowerCase().includes(search.toLowerCase()) ||
         don.description?.toLowerCase().includes(search.toLowerCase());
+
+      // Comparaison par ID (nombre)
       const matchCategory =
-        activeCategory === 'Tous' || don.category === activeCategory;
+        activeCategory === 'Tous' || don.categoryId === activeCategoryId;
+
       return matchSearch && matchCategory;
     });
-  }, [availableDons, user, search, activeCategory]);
+  }, [availableDons, user, search, activeCategory, categoryNameToId]);
 
   // Catégories avec "Tous" en tête
   const categories = useMemo(

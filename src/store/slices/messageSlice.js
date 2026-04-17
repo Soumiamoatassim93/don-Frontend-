@@ -2,9 +2,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { messageService } from '../../services/message.service';
 
-// ─── THUNKS ───────────────────────────────────────────────────────────────────
+// ─── THUNKS ───────────────────────────────────────────────────────────────
 
-// Récupérer toutes les conversations (via socket, retourne un tableau vide par défaut)
 export const fetchConversations = createAsyncThunk(
   'messages/fetchConversations',
   async (_, { rejectWithValue }) => {
@@ -16,19 +15,21 @@ export const fetchConversations = createAsyncThunk(
   }
 );
 
-// Créer ou récupérer une conversation (virtuelle, basée sur recipientId)
+// ✅ Modifié : attend { recipient, donId } avec recipient = { id, nom, email }
 export const fetchOrCreateConversation = createAsyncThunk(
   'messages/fetchOrCreateConversation',
-  async ({ recipientId, donId }, { rejectWithValue }) => {
+  async ({ recipient, donId }, { getState, rejectWithValue }) => {
     try {
-      return await messageService.createConversation(recipientId, donId);
+      const state = getState();
+      const currentUser = state.auth?.user;
+      if (!currentUser) throw new Error('Utilisateur non connecté');
+      return await messageService.createConversation(currentUser, recipient, donId);
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || err.message);
+      return rejectWithValue(err.message);
     }
   }
 );
 
-// Récupérer les messages d'une conversation (via socket)
 export const fetchMessages = createAsyncThunk(
   'messages/fetchMessages',
   async (conversationId, { rejectWithValue }) => {
@@ -41,7 +42,6 @@ export const fetchMessages = createAsyncThunk(
   }
 );
 
-// Envoyer un message (via socket)
 export const sendMessage = createAsyncThunk(
   'messages/sendMessage',
   async ({ conversationId, content, tempId }, { rejectWithValue }) => {
@@ -49,12 +49,11 @@ export const sendMessage = createAsyncThunk(
       const message = await messageService.sendMessage(conversationId, content);
       return { conversationId, message, tempId };
     } catch (err) {
-      return rejectWithValue({ tempId, error: err.response?.data?.message || err.message });
+      return rejectWithValue({ tempId, error: err.message });
     }
   }
 );
 
-// Marquer comme lu (via socket)
 export const markConversationAsRead = createAsyncThunk(
   'messages/markAsRead',
   async (conversationId, { rejectWithValue }) => {
@@ -67,7 +66,6 @@ export const markConversationAsRead = createAsyncThunk(
   }
 );
 
-// Supprimer une conversation (non supporté par socket, mais on garde pour compatibilité)
 export const deleteConversation = createAsyncThunk(
   'messages/deleteConversation',
   async (conversationId, { rejectWithValue }) => {
@@ -80,7 +78,7 @@ export const deleteConversation = createAsyncThunk(
   }
 );
 
-// ─── SLICE ────────────────────────────────────────────────────────────────────
+// ─── SLICE ─────────────────────────────────────────────────────────────────
 
 const messageSlice = createSlice({
   name: 'messages',
@@ -115,9 +113,7 @@ const messageSlice = createSlice({
     updateOptimisticMessage: (state, action) => {
       const { tempId, message } = action.payload;
       const index = state.messages.findIndex(m => m.id === tempId);
-      if (index !== -1) {
-        state.messages[index] = message;
-      }
+      if (index !== -1) state.messages[index] = message;
     },
     markMessageFailed: (state, action) => {
       const { tempId } = action.payload;
@@ -134,9 +130,7 @@ const messageSlice = createSlice({
     updateUnreadCount: (state, action) => {
       const { conversationId, unreadCount } = action.payload;
       const conversation = state.conversations.find(c => c.id === conversationId);
-      if (conversation) {
-        conversation.unreadCount = unreadCount;
-      }
+      if (conversation) conversation.unreadCount = unreadCount;
     },
     setPollingInterval: (state, action) => {
       state.pollingInterval = action.payload;
@@ -153,19 +147,20 @@ const messageSlice = createSlice({
       state.error = null;
       state.sendError = null;
     },
-    // Réception d'un nouveau message en temps réel (via socket)
     receiveNewMessage: (state, action) => {
       const message = action.payload;
       const senderId = String(message.senderId);
       const convId = `conv_${senderId}`;
       
-      // Trouver ou créer la conversation virtuelle
       let conversation = state.conversations.find(c => c.id === convId);
       if (!conversation) {
+        const senderNom = message.senderNom || 'Utilisateur';
+        const senderEmail = message.senderEmail || '';
         conversation = {
           id: convId,
-          recipientId: senderId,
-          participants: [{ id: senderId }],
+          participants: [
+            { id: senderId, nom: senderNom, email: senderEmail },
+          ],
           lastMessage: message,
           unreadCount: 0,
           createdAt: new Date().toISOString(),
@@ -177,12 +172,10 @@ const messageSlice = createSlice({
         conversation.updatedAt = new Date().toISOString();
       }
       
-      // Incrémenter le compteur de non lus si ce n'est pas la conversation courante
       if (!state.currentConversation || state.currentConversation.id !== convId) {
         conversation.unreadCount = (conversation.unreadCount || 0) + 1;
       }
       
-      // Ajouter le message à la liste si c'est la conversation courante
       if (state.currentConversation && state.currentConversation.id === convId) {
         if (!state.messages.some(m => m.id === message.id)) {
           state.messages.push(message);
@@ -191,7 +184,6 @@ const messageSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    // ── fetchConversations ─────────────────────────
     builder
       .addCase(fetchConversations.pending, (state) => {
         state.isLoading = true;
@@ -204,10 +196,7 @@ const messageSlice = createSlice({
       .addCase(fetchConversations.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
-      });
-
-    // ── fetchOrCreateConversation ───────────────────
-    builder
+      })
       .addCase(fetchOrCreateConversation.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -215,19 +204,13 @@ const messageSlice = createSlice({
       .addCase(fetchOrCreateConversation.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentConversation = action.payload;
-        // Ajouter la conversation à la liste si elle n'existe pas
         const exists = state.conversations.some(c => c.id === action.payload.id);
-        if (!exists) {
-          state.conversations.unshift(action.payload);
-        }
+        if (!exists) state.conversations.unshift(action.payload);
       })
       .addCase(fetchOrCreateConversation.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
-      });
-
-    // ── fetchMessages ───────────────────────────────
-    builder
+      })
       .addCase(fetchMessages.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -239,10 +222,7 @@ const messageSlice = createSlice({
       .addCase(fetchMessages.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
-      });
-
-    // ── sendMessage ─────────────────────────────────
-    builder
+      })
       .addCase(sendMessage.pending, (state) => {
         state.sendingMessage = true;
         state.sendError = null;
@@ -250,14 +230,10 @@ const messageSlice = createSlice({
       .addCase(sendMessage.fulfilled, (state, action) => {
         state.sendingMessage = false;
         const { tempId, message, conversationId } = action.payload;
-        // Remplacer le message optimiste par le vrai
         const index = state.messages.findIndex(m => m.id === tempId);
-        if (index !== -1) {
-          state.messages[index] = message;
-        } else {
-          state.messages.push(message);
-        }
-        // Mettre à jour la dernière conversation
+        if (index !== -1) state.messages[index] = message;
+        else state.messages.push(message);
+        
         const conv = state.conversations.find(c => c.id === conversationId);
         if (conv) {
           conv.lastMessage = message;
@@ -267,20 +243,12 @@ const messageSlice = createSlice({
       .addCase(sendMessage.rejected, (state, action) => {
         state.sendingMessage = false;
         state.sendError = action.payload.error;
-      });
-
-    // ── markConversationAsRead ──────────────────────
-    builder
+      })
       .addCase(markConversationAsRead.fulfilled, (state, action) => {
         const conversationId = action.payload;
         const conversation = state.conversations.find(c => c.id === conversationId);
-        if (conversation) {
-          conversation.unreadCount = 0;
-        }
-      });
-
-    // ── deleteConversation ──────────────────────────
-    builder
+        if (conversation) conversation.unreadCount = 0;
+      })
       .addCase(deleteConversation.fulfilled, (state, action) => {
         state.conversations = state.conversations.filter(c => c.id !== action.payload);
         if (state.currentConversation?.id === action.payload) {

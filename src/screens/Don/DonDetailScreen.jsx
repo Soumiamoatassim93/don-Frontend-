@@ -48,11 +48,15 @@ const DonDetailScreen = ({ route, navigation }) => {
     }
     const recipient = {
       id: don.userId,
-      name: don.user?.name || `Utilisateur ${don.userId}`,
+      name: don.user?.nom || don.user?.name || `Utilisateur ${don.userId}`,
       email: don.user?.email || '',
     };
     navigation.navigate('Chat', { recipient, don });
   };
+
+  // Récupération du nom du donateur (priorité à 'nom' puis 'name')
+  const donorName = don.user?.nom || don.user?.name || 'Anonyme';
+  const donorPhone = don.user?.telephone || null;
 
   return (
     <View style={styles.wrapper}>
@@ -143,12 +147,15 @@ const DonDetailScreen = ({ route, navigation }) => {
               <View style={styles.donateurRow}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
-                    {don.user.name?.[0]?.toUpperCase() || don.user.email?.[0]?.toUpperCase() || '?'}
+                    {donorName[0]?.toUpperCase() || don.user.email?.[0]?.toUpperCase() || '?'}
                   </Text>
                 </View>
                 <View>
-                  <Text style={styles.donateurName}>{don.user.name || 'Anonyme'}</Text>
+                  <Text style={styles.donateurName}>{donorName}</Text>
                   <Text style={styles.donateurEmail}>{don.user.email}</Text>
+                  {donorPhone ? (
+                    <Text style={styles.donateurPhone}>📞 {donorPhone}</Text>
+                  ) : null}
                 </View>
               </View>
             </>

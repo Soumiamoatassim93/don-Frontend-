@@ -31,13 +31,23 @@ const ChatScreen = ({ route, navigation }) => {
   const [initError, setInitError] = useState(null);
   const flatListRef = useRef(null);
 
-  // Initialisation de la conversation
   useEffect(() => {
     let mounted = true;
     const init = async () => {
       try {
-        if (!recipient?.id) throw new Error('Destinataire invalide');
-        const conv = await getOrCreateConversation(recipient.id, don?.id);
+        if (!recipient?.id) {
+          throw new Error('Destinataire invalide (pas d\'ID)');
+        }
+        console.log('Initialisation conversation avec recipient:', recipient);
+        
+        // Appel pour créer/récupérer la conversation
+        const conv = await getOrCreateConversation(recipient, don?.id);
+        console.log('Conversation reçue:', conv);
+        
+        if (!conv || !conv.id) {
+          throw new Error('La conversation retournée n\'a pas d\'ID');
+        }
+        
         if (mounted) {
           setConversationId(conv.id);
           setCurrentConv(conv);
@@ -45,19 +55,19 @@ const ChatScreen = ({ route, navigation }) => {
           await markAsRead(conv.id);
         }
       } catch (err) {
+        console.error('Erreur init conversation:', err);
         if (mounted) setInitError(err.message);
       }
     };
     init();
     return () => { mounted = false; };
-  }, [recipient?.id]);
+  }, [recipient?.id]); // seulement si l'ID change
 
-  // Titre du header (pas de nom si absent)
+  // Titre du header
   useEffect(() => {
-    navigation.setOptions({
-      title: recipient?.name || 'Chat',
-    });
-  }, [recipient]);
+    const title = recipient?.nom || recipient?.name || 'Chat';
+    navigation.setOptions({ title });
+  }, [recipient, navigation]);
 
   // Auto-scroll
   useEffect(() => {
@@ -68,10 +78,14 @@ const ChatScreen = ({ route, navigation }) => {
     }
   }, [messages]);
 
-  // Envoi d'un message
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text || sendingMessage || !conversationId) return;
+    if (!text) return;
+    if (sendingMessage) return;
+    if (!conversationId) {
+      Alert.alert('Erreur', 'Conversation non initialisée. Réessayez.');
+      return;
+    }
 
     const tempId = Date.now();
     addOptimisticMsg(tempId, text, user?.id, new Date().toISOString());
@@ -81,22 +95,20 @@ const ChatScreen = ({ route, navigation }) => {
       const message = await sendNewMessage(conversationId, text, tempId);
       updateOptimisticMsg(tempId, message);
     } catch (error) {
+      console.error('Send error:', error);
       markMsgFailed(tempId);
       Alert.alert('Erreur', "Le message n'a pas pu être envoyé");
     }
   };
 
-  // Rendu d'un message
   const renderItem = ({ item }) => {
     const isMe = item.senderId === user?.id;
+    const avatarLetter = (recipient?.nom || recipient?.name || '?')[0].toUpperCase();
     return (
       <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowOther]}>
-        {/* Avatar uniquement si le destinataire a un nom */}
-        {!isMe && recipient?.name && (
+        {!isMe && (
           <View style={styles.msgAvatar}>
-            <Text style={styles.msgAvatarText}>
-              {recipient.name[0]?.toUpperCase()}
-            </Text>
+            <Text style={styles.msgAvatarText}>{avatarLetter}</Text>
           </View>
         )}
         <View style={[
@@ -125,11 +137,23 @@ const ChatScreen = ({ route, navigation }) => {
       <View style={styles.center}>
         <Text style={{ color: 'red', marginBottom: 10 }}>Erreur : {initError}</Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={{ color: styles.primary }}>Retour</Text>
+          <Text style={{ color: '#6366f1' }}>Retour</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  // Tant que conversationId n'est pas défini, on affiche le chargement
+  if (!conversationId) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={{ marginTop: 10 }}>Chargement de la conversation...</Text>
+      </View>
+    );
+  }
+
+  const isSendDisabled = !input.trim() || sendingMessage;
 
   return (
     <KeyboardAvoidingView
@@ -137,7 +161,6 @@ const ChatScreen = ({ route, navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
-      {/* Bannière du don (optionnelle) */}
       {don && (
         <View style={styles.donBanner}>
           <Text style={styles.donBannerIcon}>📦</Text>
@@ -160,7 +183,6 @@ const ChatScreen = ({ route, navigation }) => {
         }
       />
 
-      {/* Zone de saisie */}
       <View style={styles.inputBar}>
         <TextInput
           style={styles.input}
@@ -173,12 +195,9 @@ const ChatScreen = ({ route, navigation }) => {
           onSubmitEditing={sendMessage}
         />
         <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            (!input.trim() || sendingMessage) && styles.sendBtnDisabled
-          ]}
+          style={[styles.sendBtn, isSendDisabled && styles.sendBtnDisabled]}
           onPress={sendMessage}
-          disabled={!input.trim() || sendingMessage}
+          disabled={isSendDisabled}
         >
           <Text style={styles.sendBtnIcon}>➤</Text>
         </TouchableOpacity>

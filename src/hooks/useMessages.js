@@ -40,9 +40,10 @@ export const useMessages = () => {
   }, [dispatch]);
 
   // Créer ou récupérer une conversation
-  const getOrCreateConversation = useCallback((recipientId, donId = null) => {
-    return dispatch(fetchOrCreateConversation({ recipientId, donId })).unwrap();
-  }, [dispatch]);
+  const getOrCreateConversation = useCallback((recipient, donId = null) => {
+  // recipient = { id, nom, email }
+  return dispatch(fetchOrCreateConversation({ recipient, donId })).unwrap();
+}, [dispatch]);
 
   // Récupérer les messages d'une conversation
   const getMessages = useCallback((conversationId) => {
@@ -51,8 +52,8 @@ export const useMessages = () => {
 
   // Envoyer un message
   const sendNewMessage = useCallback((conversationId, content, tempId) => {
-    return dispatch(sendMessage({ conversationId, content, tempId })).unwrap();
-  }, [dispatch]);
+  return dispatch(sendMessage({ conversationId, content, tempId })).unwrap();
+}, [dispatch]);
 
   // Marquer comme lu
   const markAsRead = useCallback((conversationId) => {

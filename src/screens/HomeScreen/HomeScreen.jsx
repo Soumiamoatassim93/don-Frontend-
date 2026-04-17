@@ -114,7 +114,8 @@ const HomeScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation, user?.id, dispatch]);
 
-  const initiale = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
+  // ✅ Récupération du nom complet (ou fallback)
+  const userName = user?.nom || user?.email?.split('@')[0] || 'Utilisateur';
 
   if (donsLoading && !refreshing) {
     return (
@@ -140,7 +141,8 @@ const HomeScreen = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <Text style={styles.greeting}>Bonjour 👋 {initiale}</Text>
+          {/* ✅ Affichage du nom complet au lieu d'une seule lettre */}
+          <Text style={styles.greeting}>Bonjour 👋 {userName}</Text>
           <View style={styles.headerIcons}>
             {/* Bouton Chat existant - GARDÉ */}
             <TouchableOpacity
