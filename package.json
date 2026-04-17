@@ -45,8 +45,13 @@
   "expo": {
     "doctor": {
       "reactNativeDirectoryCheck": {
-        "exclude": ["react-native-geolocation-service"]
+        "exclude": [
+          "react-native-geolocation-service"
+        ]
       }
     }
+  },
+  "devDependencies": {
+    "expo-module-scripts": "^3.0.5"
   }
 }

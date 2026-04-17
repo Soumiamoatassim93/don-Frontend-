@@ -1,23 +1,21 @@
 // screens/Messagerie/ChatScreen.jsx
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, FlatList, TextInput,
   TouchableOpacity, KeyboardAvoidingView, Platform,
-  ActivityIndicator,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useMessages } from '../../hooks/useMessages';
 import { styles } from './MessagerieStyles';
 
 const ChatScreen = ({ route, navigation }) => {
-  const { conversation: initialConversation, recipient, don } = route.params;
+  const { recipient, don } = route.params;
   const { user } = useAuth();
   const {
-    currentConversation,
     messages,
     isLoading,
     sendingMessage,
-    sendError,
     getOrCreateConversation,
     getMessages,
     sendNewMessage,
@@ -26,102 +24,94 @@ const ChatScreen = ({ route, navigation }) => {
     updateOptimisticMsg,
     markMsgFailed,
     setCurrentConv,
-    startPolling,
-    stopPolling,
   } = useMessages();
 
   const [input, setInput] = useState('');
-  const [conversationId, setConversationId] = useState(initialConversation?.id || null);
+  const [conversationId, setConversationId] = useState(null);
+  const [initError, setInitError] = useState(null);
   const flatListRef = useRef(null);
 
-  // Initialiser la conversation
+  // Initialisation de la conversation
   useEffect(() => {
-    const initConversation = async () => {
+    let mounted = true;
+    const init = async () => {
       try {
-        let convId = conversationId;
-        
-        if (!convId && recipient?.id) {
-          const conv = await getOrCreateConversation(recipient.id, don?.id || null);
-          convId = conv.id;
-          setConversationId(convId);
+        if (!recipient?.id) throw new Error('Destinataire invalide');
+        const conv = await getOrCreateConversation(recipient.id, don?.id);
+        if (mounted) {
+          setConversationId(conv.id);
           setCurrentConv(conv);
+          await getMessages(conv.id);
+          await markAsRead(conv.id);
         }
-        
-        if (convId) {
-          await getMessages(convId);
-          await markAsRead(convId);
-          // Démarrer le polling
-          startPolling(convId);
-        }
-      } catch (error) {
-        console.log('Erreur initialisation:', error);
+      } catch (err) {
+        if (mounted) setInitError(err.message);
       }
     };
-    
-    initConversation();
-    
-    return () => {
-      stopPolling();
-    };
-  }, [recipient?.id, don?.id]);
+    init();
+    return () => { mounted = false; };
+  }, [recipient?.id]);
 
-  // Titre du header
+  // Titre du header (pas de nom si absent)
   useEffect(() => {
-    const other = currentConversation?.participants?.find(p => p.id !== user?.id);
     navigation.setOptions({
-      title: recipient?.name || recipient?.email || other?.name || other?.email || 'Chat',
-      headerStyle: { backgroundColor: styles.card },
-      headerTintColor: '#6366f1',
+      title: recipient?.name || 'Chat',
     });
-  }, [recipient, currentConversation, user]);
+  }, [recipient]);
 
   // Auto-scroll
   useEffect(() => {
-    if (flatListRef.current && messages.length > 0) {
+    if (flatListRef.current && messages.length) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
   }, [messages]);
 
+  // Envoi d'un message
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || sendingMessage || !conversationId) return;
 
     const tempId = Date.now();
-    const createdAt = new Date().toISOString();
-    
-    // Ajouter message optimiste
-    addOptimisticMsg(tempId, text, user?.id, createdAt);
+    addOptimisticMsg(tempId, text, user?.id, new Date().toISOString());
     setInput('');
-    
+
     try {
       const message = await sendNewMessage(conversationId, text, tempId);
       updateOptimisticMsg(tempId, message);
     } catch (error) {
       markMsgFailed(tempId);
+      Alert.alert('Erreur', "Le message n'a pas pu être envoyé");
     }
   };
 
-  const renderMessage = ({ item }) => {
+  // Rendu d'un message
+  const renderItem = ({ item }) => {
     const isMe = item.senderId === user?.id;
-    const other = currentConversation?.participants?.find(p => p.id !== user?.id);
-    
     return (
       <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowOther]}>
-        {!isMe && (
+        {/* Avatar uniquement si le destinataire a un nom */}
+        {!isMe && recipient?.name && (
           <View style={styles.msgAvatar}>
             <Text style={styles.msgAvatarText}>
-              {other?.name?.[0]?.toUpperCase() || '?'}
+              {recipient.name[0]?.toUpperCase()}
             </Text>
           </View>
         )}
-        <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther, item.failed && styles.bubbleFailed]}>
+        <View style={[
+          styles.bubble,
+          isMe ? styles.bubbleMe : styles.bubbleOther,
+          item.failed && styles.bubbleFailed
+        ]}>
           <Text style={[styles.bubbleText, isMe && styles.bubbleTextMe]}>
             {item.content}
           </Text>
           <Text style={[styles.bubbleTime, isMe && styles.bubbleTimeMe]}>
-            {new Date(item.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+            {new Date(item.createdAt).toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
             {item.pending && ' ⏳'}
             {item.failed && ' ❌'}
           </Text>
@@ -130,10 +120,13 @@ const ChatScreen = ({ route, navigation }) => {
     );
   };
 
-  if (isLoading && !conversationId) {
+  if (initError) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={{ color: 'red', marginBottom: 10 }}>Erreur : {initError}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={{ color: styles.primary }}>Retour</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -144,7 +137,7 @@ const ChatScreen = ({ route, navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
-      {/* Aperçu du don */}
+      {/* Bannière du don (optionnelle) */}
       {don && (
         <View style={styles.donBanner}>
           <Text style={styles.donBannerIcon}>📦</Text>
@@ -158,10 +151,8 @@ const ChatScreen = ({ route, navigation }) => {
         ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={renderMessage}
+        renderItem={renderItem}
         contentContainerStyle={styles.msgList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
         ListEmptyComponent={
           <View style={styles.emptyChat}>
             <Text style={styles.emptyChatText}>Commencez la conversation 👋</Text>
@@ -178,13 +169,14 @@ const ChatScreen = ({ route, navigation }) => {
           placeholder="Écrire un message..."
           placeholderTextColor="#6b7280"
           multiline
-          maxLength={500}
-          onSubmitEditing={sendMessage}
           returnKeyType="send"
-          blurOnSubmit={false}
+          onSubmitEditing={sendMessage}
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || sendingMessage) && styles.sendBtnDisabled]}
+          style={[
+            styles.sendBtn,
+            (!input.trim() || sendingMessage) && styles.sendBtnDisabled
+          ]}
           onPress={sendMessage}
           disabled={!input.trim() || sendingMessage}
         >

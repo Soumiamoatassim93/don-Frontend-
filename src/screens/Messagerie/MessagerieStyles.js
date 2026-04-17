@@ -13,7 +13,7 @@ const colors = {
 };
 
 export const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background ,paddingBottom:60,paddingTop:30},
+  container: { flex: 1, backgroundColor: colors.background ,paddingTop:30},
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Header liste

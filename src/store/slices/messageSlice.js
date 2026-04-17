@@ -4,7 +4,7 @@ import { messageService } from '../../services/message.service';
 
 // ─── THUNKS ───────────────────────────────────────────────────────────────────
 
-// Récupérer toutes les conversations
+// Récupérer toutes les conversations (via socket, retourne un tableau vide par défaut)
 export const fetchConversations = createAsyncThunk(
   'messages/fetchConversations',
   async (_, { rejectWithValue }) => {
@@ -16,7 +16,7 @@ export const fetchConversations = createAsyncThunk(
   }
 );
 
-// Créer ou récupérer une conversation
+// Créer ou récupérer une conversation (virtuelle, basée sur recipientId)
 export const fetchOrCreateConversation = createAsyncThunk(
   'messages/fetchOrCreateConversation',
   async ({ recipientId, donId }, { rejectWithValue }) => {
@@ -28,7 +28,7 @@ export const fetchOrCreateConversation = createAsyncThunk(
   }
 );
 
-// Récupérer les messages d'une conversation
+// Récupérer les messages d'une conversation (via socket)
 export const fetchMessages = createAsyncThunk(
   'messages/fetchMessages',
   async (conversationId, { rejectWithValue }) => {
@@ -41,7 +41,7 @@ export const fetchMessages = createAsyncThunk(
   }
 );
 
-// Envoyer un message
+// Envoyer un message (via socket)
 export const sendMessage = createAsyncThunk(
   'messages/sendMessage',
   async ({ conversationId, content, tempId }, { rejectWithValue }) => {
@@ -54,7 +54,7 @@ export const sendMessage = createAsyncThunk(
   }
 );
 
-// Marquer comme lu
+// Marquer comme lu (via socket)
 export const markConversationAsRead = createAsyncThunk(
   'messages/markAsRead',
   async (conversationId, { rejectWithValue }) => {
@@ -67,7 +67,7 @@ export const markConversationAsRead = createAsyncThunk(
   }
 );
 
-// Supprimer une conversation
+// Supprimer une conversation (non supporté par socket, mais on garde pour compatibilité)
 export const deleteConversation = createAsyncThunk(
   'messages/deleteConversation',
   async (conversationId, { rejectWithValue }) => {
@@ -153,6 +153,42 @@ const messageSlice = createSlice({
       state.error = null;
       state.sendError = null;
     },
+    // Réception d'un nouveau message en temps réel (via socket)
+    receiveNewMessage: (state, action) => {
+      const message = action.payload;
+      const senderId = String(message.senderId);
+      const convId = `conv_${senderId}`;
+      
+      // Trouver ou créer la conversation virtuelle
+      let conversation = state.conversations.find(c => c.id === convId);
+      if (!conversation) {
+        conversation = {
+          id: convId,
+          recipientId: senderId,
+          participants: [{ id: senderId }],
+          lastMessage: message,
+          unreadCount: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        state.conversations.unshift(conversation);
+      } else {
+        conversation.lastMessage = message;
+        conversation.updatedAt = new Date().toISOString();
+      }
+      
+      // Incrémenter le compteur de non lus si ce n'est pas la conversation courante
+      if (!state.currentConversation || state.currentConversation.id !== convId) {
+        conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+      }
+      
+      // Ajouter le message à la liste si c'est la conversation courante
+      if (state.currentConversation && state.currentConversation.id === convId) {
+        if (!state.messages.some(m => m.id === message.id)) {
+          state.messages.push(message);
+        }
+      }
+    },
   },
   extraReducers: (builder) => {
     // ── fetchConversations ─────────────────────────
@@ -179,6 +215,11 @@ const messageSlice = createSlice({
       .addCase(fetchOrCreateConversation.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentConversation = action.payload;
+        // Ajouter la conversation à la liste si elle n'existe pas
+        const exists = state.conversations.some(c => c.id === action.payload.id);
+        if (!exists) {
+          state.conversations.unshift(action.payload);
+        }
       })
       .addCase(fetchOrCreateConversation.rejected, (state, action) => {
         state.isLoading = false;
@@ -208,12 +249,19 @@ const messageSlice = createSlice({
       })
       .addCase(sendMessage.fulfilled, (state, action) => {
         state.sendingMessage = false;
-        const { tempId, message } = action.payload;
+        const { tempId, message, conversationId } = action.payload;
+        // Remplacer le message optimiste par le vrai
         const index = state.messages.findIndex(m => m.id === tempId);
         if (index !== -1) {
           state.messages[index] = message;
         } else {
           state.messages.push(message);
+        }
+        // Mettre à jour la dernière conversation
+        const conv = state.conversations.find(c => c.id === conversationId);
+        if (conv) {
+          conv.lastMessage = message;
+          conv.updatedAt = new Date().toISOString();
         }
       })
       .addCase(sendMessage.rejected, (state, action) => {
@@ -254,6 +302,7 @@ export const {
   setPollingInterval,
   clearPollingInterval,
   resetMessages,
+  receiveNewMessage,
 } = messageSlice.actions;
 
 export default messageSlice.reducer;

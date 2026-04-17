@@ -1,5 +1,5 @@
 // screens/Messagerie/ConversationList.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
@@ -12,17 +12,13 @@ const ConversationList = ({ navigation }) => {
   const { conversations, isLoading, getConversations } = useMessages();
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  const loadConversations = async () => {
-    await getConversations();
-  };
+  // NE PAS appeler getConversations() ici car cela vide la liste
+  // Les conversations sont déjà dans le store (ajoutées via createConversation ou reception de messages)
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadConversations();
+    // Optionnel : tu peux implémenter une vraie récupération si tu as un endpoint
+    // await getConversations(); // à éviter car retourne []
     setRefreshing(false);
   };
 

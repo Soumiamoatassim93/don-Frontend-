@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, Image,
-  Dimensions, TouchableOpacity,
+  Dimensions, TouchableOpacity, Alert,
 } from 'react-native';
-import { API_URL }        from '../../../config';
-import { useDonDetail }   from '../../hooks/useDonDetail';
-import { styles }         from './styles/DonDetail';
+import { API_URL } from '../../../config';
+import { useDonDetail } from '../../hooks/useDonDetail';
+import { styles } from './styles/DonDetail';
 
 const { width } = Dimensions.get('window');
 const colors = {
@@ -25,25 +25,38 @@ const getImageUri = (img) => {
     return `${API_URL}/uploads/${img.url.replace(/^\/?uploads\//, '')}`;
   }
   if (img.filename) return `${API_URL}/uploads/${img.filename}`;
-  if (img.path)     return `${API_URL}/uploads/${img.path}`;
+  if (img.path) return `${API_URL}/uploads/${img.path}`;
   return null;
 };
 
 const DonDetailScreen = ({ route, navigation }) => {
-  const { don }                           = route.params;
-  const images                            = Array.isArray(don.images) ? don.images : [];
-  const [activeIndex, setActiveIndex]     = useState(0);
-  const [imageErrors, setImageErrors]     = useState({});
+  const { don } = route.params;
+  const images = Array.isArray(don.images) ? don.images : [];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [imageErrors, setImageErrors] = useState({});
 
   const {
     isFavorite, requestSent, sendLoading,
     handleFavorite, handleRequest,
   } = useDonDetail(don);
 
+  // Construction du destinataire pour le chat
+  const handleContact = () => {
+    if (!don.userId) {
+      Alert.alert('Erreur', 'Impossible d\'identifier le destinataire');
+      return;
+    }
+    const recipient = {
+      id: don.userId,
+      name: don.user?.name || `Utilisateur ${don.userId}`,
+      email: don.user?.email || '',
+    };
+    navigation.navigate('Chat', { recipient, don });
+  };
+
   return (
     <View style={styles.wrapper}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
-
         {images.length > 0 ? (
           <View>
             <ScrollView
@@ -146,7 +159,7 @@ const DonDetailScreen = ({ route, navigation }) => {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={[styles.bottomBtn, styles.msgBtn]}
-          onPress={() => navigation.navigate('Messagerie', { don, recipient: don.user })}
+          onPress={handleContact}
         >
           <Text style={[styles.bottomBtnText, { color: colors.reqColor }]}>💬 Contacter</Text>
         </TouchableOpacity>
