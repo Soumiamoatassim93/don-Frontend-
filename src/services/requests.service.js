@@ -2,7 +2,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../../config';
-import NotificationService from './notification.service';
+import NotificationService from './notifications.service';
 
 class RequestsService {
   constructor() {
