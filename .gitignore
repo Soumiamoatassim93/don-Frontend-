@@ -1,42 +1,76 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dépendances
 node_modules/
 
-# Expo
+# Expo / EAS
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+.expo-shared/
+.eas-build/
 
-# Native
-.kotlin/
+# Généré par Metro
+.metro-health-check*
+
+# Fichiers de debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 *.orig.*
+
+# Variables d'environnement
+.env
+.env.local
+.env.*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# NATIF (Android & iOS)
+# Ces dossiers seront générés par EAS Build, on ne les versionne PAS
+/android/
+/ios/
+
+# Fichiers de build Android
+*.apk
+*.aab
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
 
-# Metro
-.metro-health-check*
 
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+# Fichiers spécifiques Kotlin (si présents localement)
+.kotlin/
+*.class
 
-# macOS
-.DS_Store
-*.pem
+# Fichiers temporaires Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
 
-# local env files
-.env*.local
+# Fichiers locaux Firebase (optionnel, à décommenter si vous ne voulez pas versionner google-services.json)
+google-services.json
 
-# typescript
-*.tsbuildinfo
-
-# generated native folders
-/ios
-/android/app/build
-/android/.gradle
+# Fichiers de cache
+.cache/
+*.tmp
+*.temp
