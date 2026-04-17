@@ -9,13 +9,14 @@ import ProfileScreen from '../screens/Profile/ProfileScreen';
 import MesDonsScreen from '../screens/Don/MesDonsScreen';
 import EditDonScreen from '../screens/Don/EditDonScreen';
 import DonDetailScreen from '../screens/Don/DonDetailScreen';
-import MessagerieScreen from '../screens/MessagerieScreen';
+import MessagerieScreen from '../screens/Messagerie/MessagerieScreen';
 import CustomDrawerContent from './CustomDrawerContent';
 import FavorisScreen from '../screens/Favoris/FavorisScreen';
 import RequestsScreen from '../screens/RequestScreen/RequestsScreen';
 import TrackingScreen from '../screens/TrakingScreen/TrackingScreen';
 import SenderTrackingScreen from '../screens/SenderTracking/SenderTrackingScreen';
 import notificationScreen from '../screens/notification/notificationScreen';
+import ChatScreen from '../screens/Messagerie/ChatScreen';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -45,12 +46,10 @@ const HomeStack = () => (
     <Stack.Screen name="AddDon" component={AddDonScreen} options={{ title: 'Publier un don' }} />
     <Stack.Screen name="EditDon" component={EditDonScreen} options={{ title: 'Modifier le don' }} />
     <Stack.Screen name="Messagerie" component={MessagerieScreen} options={{ title: 'Messagerie' }} />
-    <Stack.Screen name="Chat" component={MessagerieScreen} options={{ title: 'Chat' }} />
     <Stack.Screen name="Favoris" component={FavorisScreen} options={{ title: 'Mes Favoris' }} />
     <Stack.Screen name="Requests" component={RequestsScreen} options={{ title: 'Demandes' }} />
     <Stack.Screen name="Notifications" component={notificationScreen} options={{ headerShown: false }} />
-
-    
+    <Stack.Screen name="Chat" component={ChatScreen} options={{ title: 'Chat' }} />
   </Stack.Navigator>
 );
 
@@ -68,6 +67,7 @@ const AppStack = () => (
 <Drawer.Screen name="Tracking" component={TrackingScreen} options={{ headerShown: false }} />
 <Drawer.Screen name="SenderTracking" component={SenderTrackingScreen} options={{ headerShown: false }} />
 <Drawer.Screen name="Notifications" component={notificationScreen} options={{ headerShown: false }} />
+<Drawer.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
   </Drawer.Navigator>
 );
 
