@@ -67,8 +67,6 @@ gradle-app.setting
 !gradle-wrapper.jar
 .gradletasknamecache
 
-# Fichiers locaux Firebase (optionnel, à décommenter si vous ne voulez pas versionner google-services.json)
-google-services.json
 
 # Fichiers de cache
 .cache/
