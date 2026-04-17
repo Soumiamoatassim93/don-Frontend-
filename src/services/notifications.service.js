@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from './auth.service';
+import Constants from 'expo-constants'; // 👈 AJOUTE CET IMPORT
 
 class NotificationService {
   constructor() {
@@ -48,9 +49,9 @@ class NotificationService {
       return null;
     }
     
-    // Obtenir le token Expo
+    // ✅ CORRECTION ICI - Récupère le projectId depuis app.json
     const token = await Notifications.getExpoPushTokenAsync({
-      projectId: 'votre-project-id', // À remplacer
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
     });
     
     console.log('Expo Push Token:', token.data);
