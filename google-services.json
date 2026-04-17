@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "462026313682",
+    "project_id": "donapp-608a1",
+    "storage_bucket": "donapp-608a1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:462026313682:android:ecb8d22025b10f169d020b",
+        "android_client_info": {
+          "package_name": "com.imanezaazaa.donfrontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPLoe9DK0wXA9gadDetAnxDLJj696iuQU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
