@@ -27,12 +27,10 @@ export const useRequests = () => {
     actionError,
   } = useAppSelector((state) => state.requests);
 
-  // Actions existantes
   const send = useCallback((userId, donationId, status = 'en_cours') => {
     return dispatch(sendRequest({ userId, donationId, status })).unwrap();
   }, [dispatch]);
 
-  // Nouvelles actions
   const getSentRequests = useCallback((userId) => {
     return dispatch(fetchSentRequests(userId)).unwrap();
   }, [dispatch]);
@@ -41,12 +39,14 @@ export const useRequests = () => {
     return dispatch(fetchReceivedRequests(userId)).unwrap();
   }, [dispatch]);
 
-  const accept = useCallback((requestId, request) => {
-    return dispatch(acceptRequest({ requestId, request })).unwrap();
+  // ✅ CORRIGÉ : accept ne prend plus que requestId
+  const accept = useCallback((requestId) => {
+    return dispatch(acceptRequest({ requestId })).unwrap();
   }, [dispatch]);
 
-  const refuse = useCallback((requestId, request) => {
-    return dispatch(refuseRequest({ requestId, request })).unwrap();
+  // ✅ CORRIGÉ : refuse ne prend plus que requestId
+  const refuse = useCallback((requestId) => {
+    return dispatch(refuseRequest({ requestId })).unwrap();
   }, [dispatch]);
 
   const cancel = useCallback((requestId, isSent = true) => {
@@ -66,27 +66,20 @@ export const useRequests = () => {
   }, [dispatch]);
 
   return {
-    // États existants
     sentRequestIds,
-    sendLoading,
-    sendError,
-    
-    // Nouveaux états
     sentRequests,
     receivedRequests,
+    sendLoading,
+    sendError,
     fetchLoading,
     fetchError,
     actionLoading,
     actionError,
-    
-    // Actions existantes
     send,
-    
-    // Nouvelles actions
     getSentRequests,
     getReceivedRequests,
-    accept,
-    refuse,
+    accept,      // ✅ Maintenant accept prend requestId seulement
+    refuse,      // ✅ Maintenant refuse prend requestId seulement
     cancel,
     clearErrors,
     resetAll,

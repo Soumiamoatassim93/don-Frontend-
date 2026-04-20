@@ -72,15 +72,10 @@ class NotificationService {
     }
   }
 
-  // ─── ENVOYER UNE NOTIFICATION À UN UTILISATEUR ─────────────────────────────
-  // userId  : l'utilisateur DESTINATAIRE (pas l'expéditeur)
-  // title   : titre de la notification
-  // body    : texte de la notification
-  // data    : données supplémentaires (type, requestId, donId...)
   async sendNotification(userId, title, body, data = {}) {
     try {
       const response = await authService.api.post('/notifications/send', {
-        userId,   // ← le backend récupère le push token de cet userId et envoie via FCM
+        userId,
         title,
         body,
         data,
@@ -108,13 +103,19 @@ class NotificationService {
     );
   }
 
+  // ✅ CORRECTION : Utiliser .remove() directement
   removeNotificationListeners() {
     if (this.notificationListener) {
-      Notifications.removeNotificationSubscription(this.notificationListener);
+      this.notificationListener.remove();
+      this.notificationListener = null;
     }
+    
     if (this.responseListener) {
-      Notifications.removeNotificationSubscription(this.responseListener);
+      this.responseListener.remove();
+      this.responseListener = null;
     }
+    
+    console.log('✅ Listeners de notifications supprimés');
   }
 
   async cancelAllNotifications() {

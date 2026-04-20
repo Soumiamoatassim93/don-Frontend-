@@ -48,9 +48,6 @@ class RequestsService {
   }
 
   // ─── ENVOYER UNE DEMANDE ────────────────────────────────────────────────────
-  // senderName  : nom de l'utilisateur qui envoie la demande
-  // donTitle    : titre du don concerné
-  // ownerId     : ID du propriétaire du don (qui reçoit la notif)
   async sendRequest(donId, senderId, senderName, donTitle, ownerId) {
     try {
       const response = await this.api.post(`/requests`, {
@@ -58,7 +55,6 @@ class RequestsService {
         senderId,
       });
 
-      // ✅ Notifier le propriétaire du don
       await NotificationService.sendNotification(
         ownerId,
         '📦 Nouvelle demande de don',
@@ -76,57 +72,26 @@ class RequestsService {
     }
   }
 
-  // ─── ACCEPTER UNE DEMANDE ───────────────────────────────────────────────────
-  // senderId  : ID de la personne qui a fait la demande (qui reçoit la notif)
-  // donTitle  : titre du don
-  async acceptRequest(requestId, senderId, donTitle) {
+  // ✅ CORRIGÉ : acceptRequest ne prend PLUS senderId ni donTitle
+  async acceptRequest(requestId) {
     try {
       const response = await this.api.put(`/requests/${requestId}/accept`);
-
-      // ✅ Notifier le demandeur que sa demande est acceptée
-      await NotificationService.sendNotification(
-        senderId,
-        '✅ Demande acceptée !',
-        `Votre demande pour le don "${donTitle}" a été acceptée. Vous pouvez maintenant contacter le propriétaire.`,
-        {
-          type: 'request_accepted',
-          requestId,
-          donTitle,
-        }
-      );
-
       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
-  // ─── REFUSER UNE DEMANDE ────────────────────────────────────────────────────
-  // senderId  : ID de la personne qui a fait la demande (qui reçoit la notif)
-  // donTitle  : titre du don
-  async refuseRequest(requestId, senderId, donTitle) {
+  // ✅ CORRIGÉ : refuseRequest ne prend PLUS senderId ni donTitle
+  async refuseRequest(requestId) {
     try {
       const response = await this.api.put(`/requests/${requestId}/refuse`);
-
-      // ✅ Notifier le demandeur que sa demande est refusée
-      await NotificationService.sendNotification(
-        senderId,
-        '❌ Demande refusée',
-        `Votre demande pour le don "${donTitle}" n'a pas été retenue cette fois.`,
-        {
-          type: 'request_refused',
-          requestId,
-          donTitle,
-        }
-      );
-
       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
-  // ─── ANNULER UNE DEMANDE ────────────────────────────────────────────────────
   async cancelRequest(requestId) {
     try {
       const response = await this.api.delete(`/requests/${requestId}`);
