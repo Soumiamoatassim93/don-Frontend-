@@ -71,29 +71,36 @@ export const fetchReceivedRequests = createAsyncThunk(
   }
 );
 
+// store/slices/requestsSlice.js
+// ... (gardez tous les imports)
+
+// ✅ CORRIGÉ : acceptRequest ne prend plus que requestId
 export const acceptRequest = createAsyncThunk(
   'requests/acceptRequest',
-  async ({ requestId, request }, { rejectWithValue }) => {
+  async ({ requestId }, { rejectWithValue }) => {
     try {
       await requestsService.acceptRequest(requestId);
-      return { requestId, request };
+      return { requestId };
     } catch (err) {
       return rejectWithValue(err.message);
     }
   }
 );
 
+// ✅ CORRIGÉ : refuseRequest ne prend plus que requestId
 export const refuseRequest = createAsyncThunk(
   'requests/refuseRequest',
-  async ({ requestId, request }, { rejectWithValue }) => {
+  async ({ requestId }, { rejectWithValue }) => {
     try {
       await requestsService.refuseRequest(requestId);
-      return { requestId, request };
+      return { requestId };
     } catch (err) {
       return rejectWithValue(err.message);
     }
   }
 );
+
+// Le reste du slice reste identique...
 
 export const cancelRequest = createAsyncThunk(
   'requests/cancelRequest',

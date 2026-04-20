@@ -1,11 +1,15 @@
-// hooks/useHome.js
+// hooks/useHome.js - Version corrigée
 import { useEffect, useCallback, useMemo } from 'react';
 import { Alert } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchAvailableDons }       from '../store/slices/donsSlice';
 import { fetchCategories }          from '../store/slices/categoriesSlice';
 import { toggleFavorite, resetFavoriteError } from '../store/slices/favoritesSlice';
-import { sendRequest, resetRequestError } from '../store/slices/RequestsSlice';
+import { 
+  sendRequest, 
+  resetRequestError, 
+  addSentRequestId  // ✅ Importer cette action
+} from '../store/slices/RequestsSlice';
 import { authService } from '../services/auth.service';
 
 export const useHome = (user, search, activeCategory) => {
@@ -19,6 +23,7 @@ export const useHome = (user, search, activeCategory) => {
   const sentRequestIds  = useAppSelector((s) => s.requests.sentRequestIds);
   const favoriteError   = useAppSelector((s) => s.favorites.toggleError);
   const requestError    = useAppSelector((s) => s.requests.sendError);
+  const sendLoading     = useAppSelector((s) => s.requests.sendLoading); // Pour le feedback
 
   // Chargement initial
   useEffect(() => {
@@ -41,7 +46,7 @@ export const useHome = (user, search, activeCategory) => {
     }
   }, [requestError, dispatch]);
 
-  // ✅ Création d'un Map nom → id pour les catégories
+  // Création d'un Map nom → id pour les catégories
   const categoryNameToId = useMemo(() => {
     const map = new Map();
     categoriesList.forEach((cat) => {
@@ -50,9 +55,8 @@ export const useHome = (user, search, activeCategory) => {
     return map;
   }, [categoriesList]);
 
-  // ✅ Filtrage des dons avec comparaison par categoryId
+  // Filtrage des dons avec comparaison par categoryId
   const filteredDons = useMemo(() => {
-    // Récupérer l'ID de la catégorie active (si ce n'est pas "Tous")
     let activeCategoryId = null;
     if (activeCategory !== 'Tous') {
       activeCategoryId = categoryNameToId.get(activeCategory.toLowerCase().trim());
@@ -66,7 +70,6 @@ export const useHome = (user, search, activeCategory) => {
         don.title?.toLowerCase().includes(search.toLowerCase()) ||
         don.description?.toLowerCase().includes(search.toLowerCase());
 
-      // Comparaison par ID (nombre)
       const matchCategory =
         activeCategory === 'Tous' || don.categoryId === activeCategoryId;
 
@@ -88,20 +91,56 @@ export const useHome = (user, search, activeCategory) => {
         .unwrap()
         .then(({ isFavorite }) => {
           Alert.alert('Succès', isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris');
+        })
+        .catch((error) => {
+          console.error('Favorite error:', error);
         });
     },
     [dispatch, favoriteIds]
   );
 
+  // ✅ CORRECTION PRINCIPALE : handleRequest mis à jour
   const handleRequest = useCallback(
     async (don) => {
-      if (sentRequestIds.includes(don.id)) return;
-      const currentUser = await authService.getCurrentUser();
-      dispatch(sendRequest({ userId: currentUser.id, donationId: don.id, status: 'en_cours' }))
-        .unwrap()
-        .then(() => Alert.alert('Succès', 'Demande envoyée ✔️'));
+      // Vérification 1: Demande déjà envoyée ?
+      if (sentRequestIds.includes(don.id)) {
+        Alert.alert('Information', 'Vous avez déjà demandé ce don');
+        return;
+      }
+      
+      // Vérification 2: Ne pas demander son propre don
+      if (don.userId === user?.id || don.user?.id === user?.id) {
+        Alert.alert('Action impossible', 'Vous ne pouvez pas demander votre propre don');
+        return;
+      }
+      
+      // Vérification 3: Don disponible ?
+      if (don.status !== 'disponible') {
+        Alert.alert('Don indisponible', 'Ce don n\'est plus disponible');
+        return;
+      }
+      
+      try {
+        const currentUser = await authService.getCurrentUser();
+        
+        // Envoyer la demande
+        await dispatch(sendRequest({ 
+          userId: currentUser.id, 
+          donationId: don.id, 
+          status: 'en_cours' 
+        })).unwrap();
+        
+        // ✅ IMPORTANT: Ajouter l'ID du don à la liste des demandes envoyées
+        dispatch(addSentRequestId(don.id));
+        
+        Alert.alert('Succès', 'Demande envoyée ✔️');
+        
+      } catch (error) {
+        console.error('Send request error:', error);
+        Alert.alert('Erreur', "Impossible d'envoyer la demande. Veuillez réessayer.");
+      }
     },
-    [dispatch, sentRequestIds]
+    [dispatch, sentRequestIds, user?.id]
   );
 
   const refresh = useCallback(() => {
@@ -118,6 +157,7 @@ export const useHome = (user, search, activeCategory) => {
     handleFavorite,
     handleRequest,
     refresh,
-    refreshing: useAppSelector((s) => s.dons.availableDonsLoading),
+    refreshing: donsLoading,
+    sendLoading, // Optionnel: pour afficher un indicateur de chargement
   };
 };
